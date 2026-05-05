@@ -3,7 +3,6 @@ import { Avatar, Box, ButtonBase } from "@mui/material";
 
 // project imports
 import LogoSection from "../LogoSection";
-import SearchSection from "./SearchSection";
 import ProfileSection from "./ProfileSection";
 import NotificationSection from "./NotificationSection";
 
@@ -36,7 +35,14 @@ export default function Header({ open, handleDrawerToggle }: HeaderProps) {
         >
           <LogoSection />
         </Box>
-        <ButtonBase sx={{ borderRadius: "12px", overflow: "hidden" }}>
+        <ButtonBase
+          onClick={handleDrawerToggle}
+          sx={{
+            borderRadius: "12px",
+            overflow: "hidden",
+            mr: { xs: 1, md: 0 },
+          }}
+        >
           <Avatar
             variant="rounded"
             sx={{
@@ -50,22 +56,28 @@ export default function Header({ open, handleDrawerToggle }: HeaderProps) {
                 color: theme.palette.secondary.light,
               },
             }}
-            onClick={handleDrawerToggle}
             color="inherit"
           >
             <IconMenu2 stroke={1.5} size="1.3rem" />
           </Avatar>
         </ButtonBase>
+        <Box
+          component="span"
+          sx={{
+            display: { xs: "flex", md: "none" },
+            alignItems: "center",
+          }}
+        >
+          <LogoSection />
+        </Box>
       </Box>
 
       {/* header search */}
-      <SearchSection />
       <Box sx={{ flexGrow: 1 }} />
       <Box sx={{ flexGrow: 1 }} />
 
       {/* notification section - stubbed out for now as it's complex */}
       <NotificationSection />
-
       {/* profile section */}
       <ProfileSection />
     </>

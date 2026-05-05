@@ -64,7 +64,7 @@ export default function NotificationList() {
               alignItems="center"
               justifyContent="flex-end"
             >
-              <Typography variant="caption">2 min ago</Typography>
+              <Typography variant="caption">il y a 2 min</Typography>
             </Stack>
           }
         >
@@ -75,11 +75,11 @@ export default function NotificationList() {
         </ListItem>
         <Stack sx={containerSX}>
           <Typography variant="subtitle2">
-            It is a long established fact that a reader will be distracted
+            Il est un fait bien établi qu'un lecteur sera distrait
           </Typography>
           <Stack direction="row" alignItems="center" sx={{ gap: 1 }}>
             <Chip
-              label="Unread"
+              label="Non lu"
               color="error"
               size="small"
               sx={{ width: "min-content" }}
@@ -103,7 +103,7 @@ export default function NotificationList() {
               alignItems="center"
               justifyContent="flex-end"
             >
-              <Typography variant="caption">2 min ago</Typography>
+              <Typography variant="caption">il y a 2 min</Typography>
             </Stack>
           }
         >
@@ -120,17 +120,17 @@ export default function NotificationList() {
           <ListItemText
             primary={
               <Typography variant="subtitle1">
-                Store Verification Done
+                Vérification de la boutique effectuée
               </Typography>
             }
           />
         </ListItem>
         <Stack sx={containerSX}>
           <Typography variant="subtitle2">
-            We have successfully received your request.
+            Nous avons bien reçu votre demande.
           </Typography>
           <Chip
-            label="Unread"
+            label="Non lu"
             color="error"
             size="small"
             sx={{ width: "min-content" }}
@@ -147,7 +147,7 @@ export default function NotificationList() {
               alignItems="center"
               justifyContent="flex-end"
             >
-              <Typography variant="caption">2 min ago</Typography>
+              <Typography variant="caption">il y a 2 min</Typography>
             </Stack>
           }
         >
@@ -163,7 +163,7 @@ export default function NotificationList() {
           </ListItemAvatar>
           <ListItemText
             primary={
-              <Typography variant="subtitle1">Check Your Mail.</Typography>
+              <Typography variant="subtitle1">Vérifiez votre messagerie.</Typography>
             }
           />
         </ListItem>
@@ -190,7 +190,7 @@ export default function NotificationList() {
               alignItems="center"
               justifyContent="flex-end"
             >
-              <Typography variant="caption">2 min ago</Typography>
+              <Typography variant="caption">il y a 2 min</Typography>
             </Stack>
           }
         >
@@ -203,7 +203,7 @@ export default function NotificationList() {
         </ListItem>
         <Stack sx={containerSX}>
           <Typography component="span" variant="subtitle2">
-            Uploaded two file on &nbsp;
+            a importé deux fichiers le &nbsp;
             <Typography component="span" variant="h6">
               21 Jan 2020
             </Typography>
@@ -226,7 +226,7 @@ export default function NotificationList() {
               alignItems="center"
               justifyContent="flex-end"
             >
-              <Typography variant="caption">2 min ago</Typography>
+              <Typography variant="caption">il y a 2 min</Typography>
             </Stack>
           }
         >
@@ -239,10 +239,10 @@ export default function NotificationList() {
         </ListItem>
         <Stack sx={containerSX}>
           <Typography variant="subtitle2">
-            It is a long established fact that a reader will be distracted
+            Il est un fait bien établi qu'un lecteur sera distrait
           </Typography>
           <Chip
-            label="Confirmation of Account."
+            label="Confirmation de compte."
             color="success"
             size="small"
             sx={{ width: "min-content" }}

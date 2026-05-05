@@ -6,10 +6,10 @@ import RegisterForm from "@/components/forms/RegisterForm";
 export default function RegisterPage() {
   return (
     <AuthPageShell
-      title="Create Account"
-      subtitle="Sign up to get started"
-      footerText="Already have an account?"
-      footerLinkText="Sign In"
+      title="Créer un compte"
+      subtitle="Inscrivez-vous pour commencer"
+      footerText="Vous avez déjà un compte ?"
+      footerLinkText="Se connecter"
       footerLinkHref="/login"
     >
       <RegisterForm />

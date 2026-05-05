@@ -18,6 +18,7 @@
     "@tabler/icons-react": "^3.36.1",
     "@types/lodash-es": "^4.17.12",
     "apexcharts": "^5.3.6",
+    "leaflet": "^1.9.4",
     "lodash-es": "^4.17.23",
     "material-ui-popup-state": "^5.3.6",
     "next": "16.1.6",
@@ -25,16 +26,15 @@
     "react-apexcharts": "^1.9.0",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.2",
+    "react-leaflet": "^5.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4",
     "typescript": "^5"
   }
 }

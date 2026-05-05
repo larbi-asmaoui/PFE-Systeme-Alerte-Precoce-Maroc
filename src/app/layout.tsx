@@ -3,8 +3,9 @@ import ThemeRegistry from "@/lib/ThemeRegistry";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
-  title: "Heat Wave – Dashboard",
-  description: "Enterprise Heat Wave monitoring dashboard",
+  title: "Vague de Chaleur – Tableau de bord",
+  description:
+    "Tableau de bord pour la surveillance des vagues de chaleur en entreprise",
 };
 
 import { Roboto } from "next/font/google";

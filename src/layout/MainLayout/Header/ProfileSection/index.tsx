@@ -161,16 +161,16 @@ export default function ProfileSection() {
                 <Box sx={{ p: 2, pb: 0 }}>
                   <Stack>
                     <Stack direction="row" spacing={0.5} alignItems="center">
-                      <Typography variant="h4">Good Morning,</Typography>
+                      <Typography variant="h4">Bonjour,</Typography>
                       <Typography
                         component="span"
                         variant="h4"
                         sx={{ fontWeight: 400 }}
                       >
-                        {user ? `${user.first_name} ${user.last_name}` : "User"}
+                        {user?.first_name || "Utilisateur"}
                       </Typography>
                     </Stack>
-                    <Typography variant="subtitle2">Project Admin</Typography>
+                    <Typography variant="subtitle2">Administrateur</Typography>
                   </Stack>
                   <Divider sx={{ my: 2 }} />
                 </Box>
@@ -191,14 +191,20 @@ export default function ProfileSection() {
                       },
                     }}
                   >
-                    <ListItemButton sx={{ borderRadius: `${borderRadius}px` }}>
+                    <ListItemButton
+                      sx={{ borderRadius: `${borderRadius}px` }}
+                      onClick={() => {
+                        handleToggle();
+                        router.push("/profile");
+                      }}
+                    >
                       <ListItemIcon>
-                        <IconSettings stroke={1.5} size="1.3rem" />
+                        <IconUser stroke={1.5} size="1.3rem" />
                       </ListItemIcon>
                       <ListItemText
                         primary={
                           <Typography variant="body2">
-                            Account Settings
+                            Profil & Compte
                           </Typography>
                         }
                       />
@@ -212,7 +218,9 @@ export default function ProfileSection() {
                       </ListItemIcon>
                       <ListItemText
                         primary={
-                          <Typography variant="body2">Logout</Typography>
+                          <Typography variant="body2">
+                            Se déconnecter
+                          </Typography>
                         }
                       />
                     </ListItemButton>

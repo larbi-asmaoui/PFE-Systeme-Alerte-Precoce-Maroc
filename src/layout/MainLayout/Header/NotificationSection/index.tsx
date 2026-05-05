@@ -31,19 +31,19 @@ import { IconBell } from "@tabler/icons-react";
 const status = [
   {
     value: "all",
-    label: "All Notification",
+    label: "Toutes les notifications",
   },
   {
     value: "new",
-    label: "New",
+    label: "Nouvelles",
   },
   {
     value: "unread",
-    label: "Unread",
+    label: "Non lues",
   },
   {
     value: "other",
-    label: "Other",
+    label: "Autres",
   },
 ];
 
@@ -173,7 +173,7 @@ export default function NotificationSection() {
                     >
                       <Stack direction="row" spacing={2}>
                         <Typography variant="subtitle1">
-                          All Notification
+                          Toutes les notifications
                         </Typography>
                         <Chip
                           size="small"
@@ -224,7 +224,7 @@ export default function NotificationSection() {
                   </Stack>
                   <CardActions sx={{ p: 1.25, justifyContent: "center" }}>
                     <Button size="small" disableElevation>
-                      View All
+                      Voir tout
                     </Button>
                   </CardActions>
                 </MainCard>

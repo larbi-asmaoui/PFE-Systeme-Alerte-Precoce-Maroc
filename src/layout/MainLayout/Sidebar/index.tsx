@@ -85,8 +85,11 @@ function Sidebar({ open, handleDrawerToggle }: SidebarProps) {
       }}
       aria-label="mailbox folders"
     >
-      <DrawerStyled
-        variant={matchUpMd ? "permanent" : "temporary"}
+      <Drawer
+        container={
+          typeof window !== "undefined" ? window.document.body : undefined
+        }
+        variant="temporary"
         open={open}
         onClose={handleDrawerToggle}
         ModalProps={{ keepMounted: true }}
@@ -97,14 +100,11 @@ function Sidebar({ open, handleDrawerToggle }: SidebarProps) {
             background: theme.palette.background.paper,
             color: theme.palette.text.primary,
             borderRight: "none",
-            [theme.breakpoints.up("md")]: {
-              top: "88px",
-            },
           },
         }}
       >
         {drawerContent}
-      </DrawerStyled>
+      </Drawer>
       <DrawerStyled
         variant="permanent"
         open={open}

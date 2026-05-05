@@ -6,10 +6,10 @@ import LoginForm from "@/components/forms/LoginForm";
 export default function LoginPage() {
   return (
     <AuthPageShell
-      title="Welcome Back"
-      subtitle="Enter your credentials to continue"
-      footerText="Don't have an account?"
-      footerLinkText="Sign Up"
+      title="Bienvenue"
+      subtitle="Entrez vos identifiants pour continuer"
+      footerText="Vous n'avez pas de compte ?"
+      footerLinkText="S'inscrire"
       footerLinkHref="/register"
     >
       <LoginForm />

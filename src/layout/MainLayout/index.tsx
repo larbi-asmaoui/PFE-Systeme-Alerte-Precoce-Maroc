@@ -9,7 +9,6 @@ import { Box, Toolbar, AppBar, useMediaQuery } from "@mui/material";
 // project imports
 import Header from "./Header";
 import Sidebar from "./Sidebar";
-import Breadcrumbs from "@/ui-component/extended/Breadcrumbs";
 import MainContentStyled from "./MainContentStyled";
 import { useConfig } from "@/contexts/ConfigContext";
 import { drawerWidth } from "@/store/constant";
@@ -65,7 +64,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
       {/* main content */}
       <MainContentStyled open={drawerOpen} borderRadius={borderRadius}>
         {/* breadcrumb */}
-        <Breadcrumbs />
         {children}
       </MainContentStyled>
 

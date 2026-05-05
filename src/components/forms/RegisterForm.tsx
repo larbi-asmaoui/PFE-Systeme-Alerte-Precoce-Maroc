@@ -61,7 +61,7 @@ export default function RegisterForm() {
           <FormTextField<RegisterFormValues>
             name="first_name"
             control={control}
-            label="First Name"
+            label="Prénom"
             fullWidth
             autoFocus
           />
@@ -70,7 +70,7 @@ export default function RegisterForm() {
           <FormTextField<RegisterFormValues>
             name="last_name"
             control={control}
-            label="Last Name"
+            label="Nom de famille"
             fullWidth
           />
         </Grid>
@@ -79,7 +79,7 @@ export default function RegisterForm() {
       <FormTextField<RegisterFormValues>
         name="email"
         control={control}
-        label="Email Address"
+        label="Adresse Mail"
         type="email"
         fullWidth
         autoComplete="email"
@@ -89,7 +89,7 @@ export default function RegisterForm() {
       <PasswordField<RegisterFormValues>
         name="password"
         control={control}
-        label="Password"
+        label="Mot de passe"
         fullWidth
         autoComplete="new-password"
         helperText="Must be 8+ chars with uppercase, lowercase & number"
@@ -114,7 +114,7 @@ export default function RegisterForm() {
         {isSubmitting ? (
           <CircularProgress size={24} color="inherit" />
         ) : (
-          "Create Account"
+          "Créer un compte"
         )}
       </Button>
     </Box>

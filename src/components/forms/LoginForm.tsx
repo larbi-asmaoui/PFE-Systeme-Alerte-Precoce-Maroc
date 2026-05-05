@@ -70,7 +70,7 @@ export default function LoginForm() {
       <FormTextField<LoginFormValues>
         name="email"
         control={control}
-        label="Email Address"
+        label="Adresse Mail"
         type="email"
         fullWidth
         autoComplete="email"
@@ -81,7 +81,7 @@ export default function LoginForm() {
       <PasswordField<LoginFormValues>
         name="password"
         control={control}
-        label="Password"
+        label="Mot de passe"
         fullWidth
         autoComplete="current-password"
         sx={{ mb: 1 }}
@@ -93,7 +93,7 @@ export default function LoginForm() {
           color="secondary"
           sx={{ cursor: "pointer" }}
         >
-          Forgot Password?
+          Mot de passe oublié ?
         </Typography>
       </Box>
 
@@ -115,7 +115,7 @@ export default function LoginForm() {
         {isSubmitting ? (
           <CircularProgress size={24} color="inherit" />
         ) : (
-          "Sign In"
+          "Se connecter"
         )}
       </Button>
     </Box>

@@ -1,36 +1,33 @@
 // third party
-import { merge } from 'lodash-es';
-import { Theme } from '@mui/material/styles';
+import { merge } from "lodash-es";
+import { Theme } from "@mui/material/styles";
 
 // project imports
-import Alert from './Alert';
-import Avatar from './Avatar';
-import Button from './Button';
-import CardActions from './CardActions';
-import CardContent from './CardContent';
-import CardHeader from './CardHeader';
-import Checkbox from './Checkbox';
-import Chip from './Chip';
-import DataGrid from './DataGrid';
-import DatePicker from './DatePicker';
-import Divider from './Divider';
-import DateTimePickerToolbar from './DateTimePickerToolbar';
-import Dialog from './Dialog';
-import DialogTitle from './DialogTitle';
-import InputBase from './InputBase';
-import ListItemButton from './ListItemButton';
-import ListItemIcon from './ListItemIcon';
-import ListItemText from './ListItemText';
-import Paper from './Paper';
-import Select from './Select';
-import Slider from './Slider';
-import TableCell from './TableCell';
-import Tabs from './Tabs';
-import Typography from './Typography';
+import Alert from "./Alert";
+import Avatar from "./Avatar";
+import Button from "./Button";
+import CardActions from "./CardActions";
+import CardContent from "./CardContent";
+import CardHeader from "./CardHeader";
+import Checkbox from "./Checkbox";
+import Chip from "./Chip";
+import Divider from "./Divider";
+import Dialog from "./Dialog";
+import DialogTitle from "./DialogTitle";
+import InputBase from "./InputBase";
+import ListItemButton from "./ListItemButton";
+import ListItemIcon from "./ListItemIcon";
+import ListItemText from "./ListItemText";
+import Paper from "./Paper";
+import Select from "./Select";
+import TableCell from "./TableCell";
+import Typography from "./Typography";
 
-// ==============================||  OVERRIDES - MAIN  ||============================== //
-
-export default function ComponentsOverrides(theme: Theme, borderRadius: number, outlinedFilled: boolean) {
+export default function ComponentsOverrides(
+  theme: Theme,
+  borderRadius: number,
+  outlinedFilled: boolean,
+) {
   return merge(
     Alert(theme),
     Avatar(theme),
@@ -40,9 +37,6 @@ export default function ComponentsOverrides(theme: Theme, borderRadius: number, 
     CardHeader(theme),
     Checkbox(),
     Chip(theme),
-    DataGrid(theme),
-    DatePicker(),
-    DateTimePickerToolbar(),
     Dialog(),
     DialogTitle(),
     Divider(theme),
@@ -52,9 +46,7 @@ export default function ComponentsOverrides(theme: Theme, borderRadius: number, 
     ListItemText(theme),
     Paper(borderRadius),
     Select(),
-    Slider(theme),
     TableCell(theme),
-    Tabs(theme),
-    Typography(theme)
+    Typography(theme),
   );
 }

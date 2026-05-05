@@ -15,7 +15,19 @@ import {
 
 // constant
 const headerStyle = {
-  "& .MuiCardHeader-action": { mr: 0 },
+  "& .MuiCardHeader-action": {
+    mr: 0,
+    mt: { xs: 1.5, sm: 0 },
+    m: { xs: "auto", sm: "initial" },
+  },
+  display: "flex",
+  flexDirection: { xs: "column" as const, sm: "row" as const },
+  alignItems: { xs: "stretch", sm: "center" },
+  "& .MuiCardHeader-content": {
+    flex: "1 1 auto",
+    width: "100%",
+    textAlign: { xs: "center", sm: "left" },
+  },
 };
 
 export interface MainCardProps extends Omit<CardProps, "content" | "title"> {

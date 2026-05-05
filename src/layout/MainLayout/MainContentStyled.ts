@@ -52,17 +52,17 @@ const MainContentStyled = styled("main", {
     }),
     [theme.breakpoints.down("md")]: {
       marginLeft: "20px",
+      marginRight: "20px",
       padding: "16px",
       marginTop: "88px",
-      ...(!open && {
-        width: `calc(100% - ${drawerWidth}px)`,
-      }),
+      width: "calc(100% - 40px)",
     },
     [theme.breakpoints.down("sm")]: {
       marginLeft: "10px",
-      width: `calc(100% - ${drawerWidth}px)`,
       marginRight: "10px",
+      padding: "16px",
       marginTop: "88px",
+      width: "calc(100% - 20px)",
     },
   }),
 );
