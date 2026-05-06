@@ -20,13 +20,18 @@ def process_netcdf_batch(df, epoch_id):
     
     for row in messages:
         payload = json.loads(row['value'])
-        file_path = payload['file_path']
+        file_path_surface = payload.get('file_path_surface') or payload.get('file_path')
+        file_path_pressure = payload.get('file_path_pressure')
         end_date = payload['end_date']
         
-        print(f"🔥 Spark traite le fichier : {file_path}")
+        print(f"🔥 Spark traite le fichier surface : {file_path_surface}")
+        if file_path_pressure: print(f"🔥 Spark traite le fichier pressure : {file_path_pressure}")
         
-        if not os.path.exists(file_path):
-            print(f"Erreur : Le fichier {file_path} est introuvable.")
+        if not os.path.exists(file_path_surface):
+            print(f"Erreur : Le fichier de surface {file_path_surface} est introuvable.")
+            continue
+        if file_path_pressure and not os.path.exists(file_path_pressure):
+            print(f"Erreur : Le fichier de pression {file_path_pressure} est introuvable.")
             continue
         
         try:
@@ -36,7 +41,15 @@ def process_netcdf_batch(df, epoch_id):
             train_std = stats['std']
             
             # 2. Ouvrir les données live brutes avec Xarray
-            ds_live = xr.open_dataset(file_path, engine="netcdf4")
+            ds_surface = xr.open_dataset(file_path_surface, engine="netcdf4")
+            ds_pressure = xr.open_dataset(file_path_pressure, engine="netcdf4") if file_path_pressure else None
+            
+            # Merge ds_surface et ds_pressure en prenant soin des temps si nécessaire (Optionnel)
+            # ds_live = xr.merge([ds_surface, ds_pressure]) 
+            # 
+            # Exemple : si votre modèle attend surface_solar_radiation_downwards, geopotential, etc
+            # Pour l'instant on se limite à `ds_surface` pour illustrer la compatibilité avec avant
+            ds_live = ds_surface
             
             # (Optionnel) Si vous devez faire un resample journalier (Tmax/Tmin) comme dans l'entraînement
             # ds_daily = ds_live.resample(time="1D").max() 
