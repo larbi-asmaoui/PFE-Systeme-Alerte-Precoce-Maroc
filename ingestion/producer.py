@@ -1,71 +1,87 @@
+import os
 import json
-import logging
-from typing import Any, Dict
+import time
+from datetime import datetime, timedelta
 from confluent_kafka import Producer
+import cdsapi
+import logging
 
-from .config import settings
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("ERA5-Producer")
 
-logger = logging.getLogger(__name__)
+# Configuration Kafka (à adapter selon votre docker-compose)
+KAFKA_BROKER = os.getenv("KAFKA_BROKER", "localhost:9092")
+KAFKA_TOPIC = "era5-raw-data"
 
-class WeatherKafkaProducer:
-    """
-    Singleton wrapper for the Confluent Kafka Producer.
-    Handles serialization and delivering messages reliably.
-    """
-    _instance = None
+# Initialisation du producteur Kafka
+producer = Producer({'bootstrap.servers': KAFKA_BROKER})
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(WeatherKafkaProducer, cls).__new__(cls)
-            cls._instance._init_producer()
-        return cls._instance
+def delivery_report(err, msg):
+    """ Callback pour confirmer que Kafka a bien reçu le message """
+    if err is not None:
+        logger.error(f"Échec de livraison Kafka : {err}")
+    else:
+        logger.info(f"✅ Message envoyé à Kafka sur {msg.topic()} [{msg.partition()}]")
 
-    def _init_producer(self):
-        conf = {
-            'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVERS,
-            'client.id': settings.KAFKA_CLIENT_ID,
-            'compression.type': settings.KAFKA_COMPRESSION_TYPE,
-            'acks': 'all',  # Strongest guarantee
-            'retries': 5,
-            'delivery.timeout.ms': 120000,
-            'linger.ms': 5  # Add a tiny delay to allow batching
+def fetch_recent_era5():
+    """ Télécharge les 14 derniers jours d'ERA5 """
+    client = cdsapi.Client()
+    
+    # ERA5 a un décalage d'environ 5 jours. On calcule la fenêtre de 14 jours.
+    end_date = datetime.now() - timedelta(days=5)
+    start_date = end_date - timedelta(days=13) # Fenêtre de 14 jours
+    
+    # Formatage des dates pour l'API
+    days_list = [(start_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(14)]
+    
+    # Dossier de destination
+    raw_dir = os.path.abspath("../data/raw/live")
+    os.makedirs(raw_dir, exist_ok=True)
+    
+    file_name = f"era5_live_{end_date.strftime('%Y%m%d')}.nc"
+    file_path = os.path.join(raw_dir, file_name)
+    
+    if not os.path.exists(file_path):
+        logger.info(f"⬇️ Téléchargement des données du {start_date.date()} au {end_date.date()}...")
+        # Exemple de requête (à ajuster selon vos variables d'entraînement)
+        client.retrieve("reanalysis-era5-land", {
+            "variable": ["2m_temperature", "2m_dewpoint_temperature", "10m_u_component_of_wind", "10m_v_component_of_wind", "surface_solar_radiation_downwards"],
+            "year": list(set([d.split('-')[0] for d in days_list])),
+            "month": list(set([d.split('-')[1] for d in days_list])),
+            "day": list(set([d.split('-')[2] for d in days_list])),
+            "time": [f"{h:02d}:00" for h in range(24)],
+            "area": [36, -17, 27, -1], # Maroc
+            "format": "netcdf"
+        }, file_path)
+    
+    return file_path, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
+
+def main():
+    logger.info("Démarrage du Job d'Ingestion ERA5...")
+    try:
+        # 1. Télécharger la donnée
+        file_path, start_date, end_date = fetch_recent_era5()
+        
+        # 2. Créer le message pour Spark
+        message = {
+            "event": "new_weather_data",
+            "file_path": file_path,
+            "start_date": start_date,
+            "end_date": end_date,
+            "timestamp": datetime.now().isoformat()
         }
-        self.producer = Producer(conf)
-        logger.info(f"Kafka Producer initialized: {settings.KAFKA_BOOTSTRAP_SERVERS}")
+        
+        # 3. Envoyer à Kafka
+        producer.produce(
+            KAFKA_TOPIC, 
+            key="morocco_live", 
+            value=json.dumps(message), 
+            callback=delivery_report
+        )
+        producer.flush() # S'assure que le message est parti
+        
+    except Exception as e:
+        logger.error(f"Erreur critique lors de l'ingestion : {e}")
 
-    def delivery_report(self, err, msg):
-        """ Called once for each message produced to indicate delivery result """
-        if err is not None:
-            logger.error(f"Message delivery failed to topic {msg.topic()}: {err}")
-        else:
-            logger.debug(f"Message delivered to {msg.topic()} [{msg.partition()}] at offset {msg.offset()}")
-
-    def publish_message(self, topic: str, payload: Dict[str, Any], key: str = None):
-        """
-        Produce a JSON message to a Kafka topic.
-        """
-        try:
-            # Trigger any available delivery report callbacks
-            self.producer.poll(0)
-            
-            serialized_payload = json.dumps(payload).encode('utf-8')
-            encoded_key = key.encode('utf-8') if key else None
-            
-            self.producer.produce(
-                topic=topic,
-                key=encoded_key,
-                value=serialized_payload,
-                callback=self.delivery_report
-            )
-            # Flush periodically or rely on lingering buffer; we will just let it buffer for high throughput
-        except BufferError:
-            logger.warning(f"Local producer queue is full ({len(self.producer)} messages). Flushing...")
-            self.producer.flush()
-            self.publish_message(topic, payload, key) # Retry after flush
-        except Exception as e:
-            logger.error(f"Failed to publish message: {e}")
-
-    def flush(self, timeout=10.0):
-        """Wait for all messages in the producer queue to be delivered."""
-        logger.info("Flushing Kafka producer...")
-        self.producer.flush(timeout)
+if __name__ == "__main__":
+    main()
