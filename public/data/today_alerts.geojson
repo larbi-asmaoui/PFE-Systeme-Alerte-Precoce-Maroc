@@ -1,0 +1,1031 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.0,
+          36.0
+        ]
+      },
+      "properties": {
+        "region_lat": 36.0,
+        "region_lon": -10.0,
+        "alert_level": "yellow",
+        "predicted_temp": 21.700000762939453,
+        "severity": 0.0,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -9.25,
+          32.75
+        ]
+      },
+      "properties": {
+        "region_lat": 32.75,
+        "region_lon": -9.25,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.0,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -9.5,
+          32.5
+        ]
+      },
+      "properties": {
+        "region_lat": 32.5,
+        "region_lon": -9.5,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.5,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -9.25,
+          32.5
+        ]
+      },
+      "properties": {
+        "region_lat": 32.5,
+        "region_lon": -9.25,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.5,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -9.75,
+          32.25
+        ]
+      },
+      "properties": {
+        "region_lat": 32.25,
+        "region_lon": -9.75,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.20000000298023224,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.0,
+          32.0
+        ]
+      },
+      "properties": {
+        "region_lat": 32.0,
+        "region_lon": -10.0,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -9.75,
+          32.0
+        ]
+      },
+      "properties": {
+        "region_lat": 32.0,
+        "region_lon": -9.75,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.6000000238418579,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.0,
+          31.75
+        ]
+      },
+      "properties": {
+        "region_lat": 31.75,
+        "region_lon": -10.0,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.6000000238418579,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -9.75,
+          31.75
+        ]
+      },
+      "properties": {
+        "region_lat": 31.75,
+        "region_lon": -9.75,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.8999999761581421,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.25,
+          31.5
+        ]
+      },
+      "properties": {
+        "region_lat": 31.5,
+        "region_lon": -10.25,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.5,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.0,
+          31.5
+        ]
+      },
+      "properties": {
+        "region_lat": 31.5,
+        "region_lon": -10.0,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 1.0,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.5,
+          31.25
+        ]
+      },
+      "properties": {
+        "region_lat": 31.25,
+        "region_lon": -10.5,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.20000000298023224,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.25,
+          31.25
+        ]
+      },
+      "properties": {
+        "region_lat": 31.25,
+        "region_lon": -10.25,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 1.0,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.0,
+          31.25
+        ]
+      },
+      "properties": {
+        "region_lat": 31.25,
+        "region_lon": -10.0,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.800000011920929,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.75,
+          31.0
+        ]
+      },
+      "properties": {
+        "region_lat": 31.0,
+        "region_lon": -10.75,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.0,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.5,
+          31.0
+        ]
+      },
+      "properties": {
+        "region_lat": 31.0,
+        "region_lon": -10.5,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.4000000059604645,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.25,
+          31.0
+        ]
+      },
+      "properties": {
+        "region_lat": 31.0,
+        "region_lon": -10.25,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 1.2000000476837158,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.0,
+          31.0
+        ]
+      },
+      "properties": {
+        "region_lat": 31.0,
+        "region_lon": -10.0,
+        "alert_level": "yellow",
+        "predicted_temp": 21.799999237060547,
+        "severity": 0.800000011920929,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.75,
+          30.75
+        ]
+      },
+      "properties": {
+        "region_lat": 30.75,
+        "region_lon": -10.75,
+        "alert_level": "yellow",
+        "predicted_temp": 22.0,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.5,
+          30.75
+        ]
+      },
+      "properties": {
+        "region_lat": 30.75,
+        "region_lon": -10.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.0,
+        "severity": 0.5,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.25,
+          30.75
+        ]
+      },
+      "properties": {
+        "region_lat": 30.75,
+        "region_lon": -10.25,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 1.2000000476837158,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.0,
+          30.75
+        ]
+      },
+      "properties": {
+        "region_lat": 30.75,
+        "region_lon": -10.0,
+        "alert_level": "yellow",
+        "predicted_temp": 21.799999237060547,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.5,
+          30.5
+        ]
+      },
+      "properties": {
+        "region_lat": 30.5,
+        "region_lon": -10.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.0,
+        "severity": 0.30000001192092896,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.25,
+          30.5
+        ]
+      },
+      "properties": {
+        "region_lat": 30.5,
+        "region_lon": -10.25,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.800000011920929,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.0,
+          30.5
+        ]
+      },
+      "properties": {
+        "region_lat": 30.5,
+        "region_lon": -10.0,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.20000000298023224,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.5,
+          30.25
+        ]
+      },
+      "properties": {
+        "region_lat": 30.25,
+        "region_lon": -10.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.0,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.25,
+          30.25
+        ]
+      },
+      "properties": {
+        "region_lat": 30.25,
+        "region_lon": -10.25,
+        "alert_level": "yellow",
+        "predicted_temp": 22.0,
+        "severity": 0.6000000238418579,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.0,
+          30.25
+        ]
+      },
+      "properties": {
+        "region_lat": 30.25,
+        "region_lon": -10.0,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 1.100000023841858,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -9.75,
+          30.25
+        ]
+      },
+      "properties": {
+        "region_lat": 30.25,
+        "region_lon": -9.75,
+        "alert_level": "yellow",
+        "predicted_temp": 22.0,
+        "severity": 0.30000001192092896,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.5,
+          30.0
+        ]
+      },
+      "properties": {
+        "region_lat": 30.0,
+        "region_lon": -10.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.100000381469727,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.25,
+          30.0
+        ]
+      },
+      "properties": {
+        "region_lat": 30.0,
+        "region_lon": -10.25,
+        "alert_level": "yellow",
+        "predicted_temp": 22.100000381469727,
+        "severity": 0.699999988079071,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.0,
+          30.0
+        ]
+      },
+      "properties": {
+        "region_lat": 30.0,
+        "region_lon": -10.0,
+        "alert_level": "yellow",
+        "predicted_temp": 22.0,
+        "severity": 1.2000000476837158,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.5,
+          29.75
+        ]
+      },
+      "properties": {
+        "region_lat": 29.75,
+        "region_lon": -10.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.100000381469727,
+        "severity": 0.4000000059604645,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.25,
+          29.75
+        ]
+      },
+      "properties": {
+        "region_lat": 29.75,
+        "region_lon": -10.25,
+        "alert_level": "yellow",
+        "predicted_temp": 22.100000381469727,
+        "severity": 0.8999999761581421,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.0,
+          29.75
+        ]
+      },
+      "properties": {
+        "region_lat": 29.75,
+        "region_lon": -10.0,
+        "alert_level": "yellow",
+        "predicted_temp": 22.100000381469727,
+        "severity": 0.8999999761581421,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.75,
+          29.5
+        ]
+      },
+      "properties": {
+        "region_lat": 29.5,
+        "region_lon": -10.75,
+        "alert_level": "yellow",
+        "predicted_temp": 22.200000762939453,
+        "severity": 0.20000000298023224,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.5,
+          29.5
+        ]
+      },
+      "properties": {
+        "region_lat": 29.5,
+        "region_lon": -10.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.200000762939453,
+        "severity": 0.6000000238418579,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.25,
+          29.5
+        ]
+      },
+      "properties": {
+        "region_lat": 29.5,
+        "region_lon": -10.25,
+        "alert_level": "yellow",
+        "predicted_temp": 22.100000381469727,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -11.0,
+          29.25
+        ]
+      },
+      "properties": {
+        "region_lat": 29.25,
+        "region_lon": -11.0,
+        "alert_level": "yellow",
+        "predicted_temp": 22.200000762939453,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -10.75,
+          29.25
+        ]
+      },
+      "properties": {
+        "region_lat": 29.25,
+        "region_lon": -10.75,
+        "alert_level": "yellow",
+        "predicted_temp": 22.200000762939453,
+        "severity": 0.5,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -11.25,
+          29.0
+        ]
+      },
+      "properties": {
+        "region_lat": 29.0,
+        "region_lon": -11.25,
+        "alert_level": "yellow",
+        "predicted_temp": 22.299999237060547,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -11.75,
+          28.75
+        ]
+      },
+      "properties": {
+        "region_lat": 28.75,
+        "region_lon": -11.75,
+        "alert_level": "yellow",
+        "predicted_temp": 22.299999237060547,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -11.5,
+          28.75
+        ]
+      },
+      "properties": {
+        "region_lat": 28.75,
+        "region_lon": -11.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.200000762939453,
+        "severity": 0.4000000059604645,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -16.5,
+          28.5
+        ]
+      },
+      "properties": {
+        "region_lat": 28.5,
+        "region_lon": -16.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.299999237060547,
+        "severity": 0.4000000059604645,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -12.0,
+          28.5
+        ]
+      },
+      "properties": {
+        "region_lat": 28.5,
+        "region_lon": -12.0,
+        "alert_level": "yellow",
+        "predicted_temp": 22.200000762939453,
+        "severity": 0.20000000298023224,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -11.75,
+          28.5
+        ]
+      },
+      "properties": {
+        "region_lat": 28.5,
+        "region_lon": -11.75,
+        "alert_level": "yellow",
+        "predicted_temp": 22.200000762939453,
+        "severity": 0.20000000298023224,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -12.25,
+          28.25
+        ]
+      },
+      "properties": {
+        "region_lat": 28.25,
+        "region_lon": -12.25,
+        "alert_level": "yellow",
+        "predicted_temp": 22.0,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -12.0,
+          28.25
+        ]
+      },
+      "properties": {
+        "region_lat": 28.25,
+        "region_lon": -12.0,
+        "alert_level": "yellow",
+        "predicted_temp": 21.899999618530273,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -13.5,
+          28.0
+        ]
+      },
+      "properties": {
+        "region_lat": 28.0,
+        "region_lon": -13.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.299999237060547,
+        "severity": 0.0,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -13.25,
+          28.0
+        ]
+      },
+      "properties": {
+        "region_lat": 28.0,
+        "region_lon": -13.25,
+        "alert_level": "yellow",
+        "predicted_temp": 22.299999237060547,
+        "severity": 0.0,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -13.5,
+          27.75
+        ]
+      },
+      "properties": {
+        "region_lat": 27.75,
+        "region_lon": -13.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.399999618530273,
+        "severity": 0.4000000059604645,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -13.25,
+          27.75
+        ]
+      },
+      "properties": {
+        "region_lat": 27.75,
+        "region_lon": -13.25,
+        "alert_level": "yellow",
+        "predicted_temp": 22.100000381469727,
+        "severity": 0.20000000298023224,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -13.75,
+          27.5
+        ]
+      },
+      "properties": {
+        "region_lat": 27.5,
+        "region_lon": -13.75,
+        "alert_level": "yellow",
+        "predicted_temp": 22.5,
+        "severity": 0.10000000149011612,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -13.5,
+          27.5
+        ]
+      },
+      "properties": {
+        "region_lat": 27.5,
+        "region_lon": -13.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.399999618530273,
+        "severity": 0.5,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -13.75,
+          27.25
+        ]
+      },
+      "properties": {
+        "region_lat": 27.25,
+        "region_lon": -13.75,
+        "alert_level": "yellow",
+        "predicted_temp": 22.5,
+        "severity": 0.5,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -13.5,
+          27.25
+        ]
+      },
+      "properties": {
+        "region_lat": 27.25,
+        "region_lon": -13.5,
+        "alert_level": "yellow",
+        "predicted_temp": 22.299999237060547,
+        "severity": 0.5,
+        "threshold": "tmax_90p"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -14.0,
+          27.0
+        ]
+      },
+      "properties": {
+        "region_lat": 27.0,
+        "region_lon": -14.0,
+        "alert_level": "yellow",
+        "predicted_temp": 22.399999618530273,
+        "severity": 0.20000000298023224,
+        "threshold": "tmax_90p"
+      }
+    }
+  ]
+}
