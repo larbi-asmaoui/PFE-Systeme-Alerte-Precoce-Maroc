@@ -123,6 +123,8 @@ def _load_climatology(month_index: int) -> Tuple[np.ndarray, np.ndarray]:
 # GeoJSON builder
 # ---------------------------------------------------------------------------
 def _severity_to_alert_level(severity: float) -> str:
+    if severity <= 0.0:
+        return "none"
     if severity > 5.0:
         return "red"
     if severity > 2.0:
@@ -131,37 +133,77 @@ def _severity_to_alert_level(severity: float) -> str:
 
 
 def _build_geojson(
-    severity_matrix: np.ndarray,          # [lat, lon]
-    predicted_tmax: np.ndarray,            # [lat, lon]   (Day‑1)
+    tmax_90p: np.ndarray,                  # [lat, lon]
+    pred_tmax: np.ndarray,                 # [7, lat, lon]
+    pred_tmin: np.ndarray,                 # [7, lat, lon]
+    pred_rh: np.ndarray,                   # [7, lat, lon]
+    pred_hi: np.ndarray,                   # [7, lat, lon]
     latitudes: np.ndarray,                 # [lat,]
     longitudes: np.ndarray,                # [lon,]
 ) -> dict:
     """
     Convert anomalous pixels into a GeoJSON FeatureCollection.
 
-    Only pixels with severity > 0 are emitted.
+    Pixels that have a severity > 0 on ANY of the 7 days are emitted
+    with their full 7-day array payloads.
+    Ocean pixels (NaN in climatology) are skipped.
     """
     features = []
     lat_grid, lon_grid = np.meshgrid(latitudes, longitudes, indexing="ij")
 
-    rows, cols = np.where(severity_matrix > 0)
+    # Loop over spatial grid
+    for r in range(latitudes.shape[0]):
+        for c in range(longitudes.shape[0]):
+            # ========================================================
+            # Ocean Mask : ERA5-Land met des NaN sur l'océan
+            # ========================================================
+            if np.isnan(tmax_90p[r, c]):
+                continue
 
-    for r, c in zip(rows, cols):
-        features.append({
-            "type": "Feature",
-            "geometry": {
-                "type":        "Point",
-                "coordinates": [float(lon_grid[r, c]), float(lat_grid[r, c])],
-            },
-            "properties": {
-                "region_lat":    float(latitudes[r]),
-                "region_lon":    float(longitudes[c]),
-                "alert_level":   _severity_to_alert_level(float(severity_matrix[r, c])),
-                "predicted_temp": float(round(predicted_tmax[r, c], 1)),
-                "severity":      float(round(severity_matrix[r, c], 1)),
-                "threshold":     "tmax_90p",
-            },
-        })
+            # Sécurité supplémentaire : ignorer les seuils suspects
+            if tmax_90p[r, c] < 5:
+                continue
+
+            pixel_forecasts = []
+            has_alert = False
+
+            # Loop over the 7 forecast days
+            for d in range(7):
+                tmax_val = float(pred_tmax[d, r, c])
+                tmin_val = float(pred_tmin[d, r, c])
+                rh_val   = float(pred_rh[d, r, c])
+                hi_val   = float(pred_hi[d, r, c])
+
+                severity = tmax_val - tmax_90p[r, c]
+                alert = _severity_to_alert_level(severity)
+
+                if alert != "none":
+                    has_alert = True
+
+                forecast_date = (datetime.utcnow() + timedelta(days=d)).strftime("%Y-%m-%d")
+
+                pixel_forecasts.append({
+                    "day": d,
+                    "date": forecast_date,
+                    "tmax": float(round(tmax_val, 1)),
+                    "tmin": float(round(tmin_val, 1)),
+                    "rh": float(round(rh_val, 1)),
+                    "heat_index": float(round(hi_val, 1)),
+                    "severity": float(round(max(0.0, float(severity)), 1)),
+                    "alert_level": alert
+                })
+
+            # Add to map ONLY if it triggers an alert at least once during the week
+            if has_alert:
+                features.append({
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [float(lon_grid[r, c]), float(lat_grid[r, c])]},
+                    "properties": {
+                        "region_lat": float(latitudes[r]),
+                        "region_lon": float(longitudes[c]),
+                        "forecasts": pixel_forecasts
+                    }
+                })
 
     logger.info("GeoJSON: %d anomalous point features", len(features))
 
@@ -248,42 +290,55 @@ def run_inference(tensor_path: Optional[Path] = None, device: str = "cpu") -> Pa
 
     pred_phys = pred_norm * std_targ + mean_targ     # [1, 7, 3, 37, 65]
 
-    # Extract Day‑1  (index 0 in output_window dimension)
-    pred_d1 = pred_phys[0, 0]                         # [3, 37, 65]
-    pred_tmax = pred_d1[0].cpu().numpy()              # [37, 65]
-    pred_tmin = pred_d1[1].cpu().numpy()              # [37, 65]  (unused for heatwave but available)
+    # Extract all 7 days for the 3 variables
+    # pred_phys is [1, 7, 3, lats, lons]
+    pred_7d = pred_phys[0].cpu().numpy()              # [7, 3, 37, 65]
+    pred_tmax = pred_7d[:, 0, :, :]                   # [7, 37, 65]
+    pred_tmin = pred_7d[:, 1, :, :]                   # [7, 37, 65]
+    pred_rh   = pred_7d[:, 2, :, :]                   # [7, 37, 65]
 
-    # ---- 5. Climatology comparison ----
+    # Quick NWS approximation for Heat Index (simplified)
+    # Vapor pressure (hPa) approx: e = (RH / 100) * 6.11 * 10.0 ** (7.5 * T / (237.3 + T))
+    # HI approx = T + (0.5555 * (e - 10.0))
+    e = (pred_rh / 100.0) * 6.105 * np.exp(17.27 * pred_tmax / (237.7 + pred_tmax))
+    pred_hi = pred_tmax + 0.5555 * (e - 10.0)
+    pred_hi = np.maximum(pred_tmax, pred_hi)  # HI only applies if it's hot and humid
+
+    # ---- 5. Climatology comparison (Check across all 7 days) ----
     current_month = (datetime.utcnow() - timedelta(days=5)).month
     month_idx = current_month - 1                     # 0‑based index
 
     tmax_90p, tmin_10p = _load_climatology(month_idx)
+    # Broadcast tmax_90p from [37, 65] to [7, 37, 65]
+    tmax_90p_7d = np.expand_dims(tmax_90p, axis=0)
+    tmin_10p_7d = np.expand_dims(tmin_10p, axis=0)
 
-    severity_tmax = pred_tmax - tmax_90p              # > 0 → hotter than 90th pct
-    # Optional: cold-severity for frost alerts
-    severity_tmin = tmin_10p - pred_tmin              # > 0 → colder than 10th pct
+    severity_tmax = pred_tmax - tmax_90p_7d              # > 0 → hotter than 90th pct
+    # severity_tmin = tmin_10p_7d - pred_tmin            # optional frost alert
     
-    logger.info("Debug pred_tmax: min=%.2f, mean=%.2f, max=%.2f", pred_tmax.min(), pred_tmax.mean(), pred_tmax.max())
-    logger.info("Debug tmax_90p: min=%.2f, mean=%.2f, max=%.2f", tmax_90p.min(), tmax_90p.mean(), tmax_90p.max())
-    logger.info("Debug predicted tmin vs tmin_10p min/max/mean: pred=(%.2f, %.2f) 10p=(%.2f, %.2f)", pred_tmin.min(), pred_tmin.max(), tmin_10p.min(), tmin_10p.max())
+    logger.info("Debug pred_tmax (mean across days): %.2f", pred_tmax.mean())
+    logger.info("Debug tmax_90p mean: %.2f", tmax_90p.mean())
 
+    # Replace with max severity over the 7 days to count
     logger.info(
-        "Heatwave pixels  (severity > 0): %d / %d",
-        int(np.sum(severity_tmax > 0)),
-        severity_tmax.size,
-    )
-    logger.info(
-        "Frost-risk pixels (severity > 0): %d / %d",
-        int(np.sum(severity_tmin > 0)),
-        severity_tmin.size,
+        "Heatwave pixels  (severity > 0 any day): %d / %d",
+        int(np.sum(np.max(severity_tmax, axis=0) > 0)),
+        tmax_90p.size,
     )
 
     # ---- 6. Build GeoJSON (heatwave focus) ----
-    # Reconstruct lat/lon arrays for 37×65 grid over Morocco
     lats = np.linspace(36, 27, 37, endpoint=True)     # North → South
     lons = np.linspace(-17, -1, 65, endpoint=True)     # West  → East
 
-    geojson = _build_geojson(severity_tmax, pred_tmax, lats, lons)
+    geojson = _build_geojson(
+        tmax_90p=tmax_90p,
+        pred_tmax=pred_tmax,
+        pred_tmin=pred_tmin,
+        pred_rh=pred_rh,
+        pred_hi=pred_hi,
+        latitudes=lats,
+        longitudes=lons,
+    )
 
     with open(OUTPUT_GEOJSON, "w") as fh:
         json.dump(geojson, fh, indent=2)
