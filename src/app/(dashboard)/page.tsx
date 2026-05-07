@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import {
   Box,
@@ -130,6 +130,33 @@ const days = ["Maint.", "+24h", "Ven", "Sam", "Dim", "Lun", "Mar"];
 export default function Dashboard() {
   const [expandedRegion, setExpandedRegion] = useState<number | null>(1);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
+  const [regions, setRegions] = useState<any[]>(fakeRegions);
+
+  // Load backend GeoJSON directly from public/data
+  useEffect(() => {
+    fetch("/data/today_alerts.geojson")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.features) {
+          const parsedRegions = data.features.map((feature: any, index: number) => {
+            const props = feature.properties;
+            const coords = feature.geometry.coordinates; // [lon, lat]
+            
+            return {
+              id: index,
+              name: `Zone [${coords[1].toFixed(2)}, ${coords[0].toFixed(2)}]`,
+              coords: [coords[1], coords[0]] as [number, number], // Leaflet requires [lat, lon]
+              alert: props.alert_level || "yellow",
+              temp: props.predicted_temp ? Math.round(props.predicted_temp) : 0,
+              message: `Severity: ${props.severity?.toFixed(2)}`,
+            };
+          });
+          // Show the generated backend alerts!
+          setRegions(parsedRegions);
+        }
+      })
+      .catch((err) => console.error("Error loading geojson:", err));
+  }, []);
 
   const toggleRegion = (id: number) => {
     setExpandedRegion(expandedRegion === id ? null : id);
@@ -168,7 +195,7 @@ export default function Dashboard() {
       {/* ========================================== */}
       <Box sx={{ flexGrow: 1, position: "relative", bgcolor: "#e5e9f0" }}>
         {/* THE MAP */}
-        <DynamicHeatMap regions={fakeRegions} />
+        <DynamicHeatMap regions={regions} />
 
         {/* FLOATING LEGEND */}
         <Box
@@ -390,11 +417,11 @@ export default function Dashboard() {
             color="text.secondary"
             sx={{ mb: 1, ml: 1 }}
           >
-            ALERTES RÉGIONALES
+            ALERTES {regions.length > 0 ? `(${regions.length})` : ""}
           </Typography>
 
           <List sx={{ p: 0 }}>
-            {fakeRegions.map((region) => (
+            {regions.map((region) => (
               <Card
                 key={region.id}
                 sx={{

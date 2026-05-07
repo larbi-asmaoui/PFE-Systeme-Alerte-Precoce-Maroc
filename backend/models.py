@@ -166,7 +166,7 @@ class Seq2SeqConvLSTM(nn.Module):
         lon: int = 65,
         n_in: int = 7,
         n_out: int = 3,
-        filters: int = 32,
+        filters: int = 64, # Trained architecture used 64 filters!
         kernel_size: int = 3,
     ):
         super().__init__()
@@ -174,27 +174,22 @@ class Seq2SeqConvLSTM(nn.Module):
         self.output_window = output_window
         self.filters = filters
 
-        self.encoder = ConvLSTM(
-            input_dim=n_in,
-            hidden_dim=filters,
-            kernel_size=kernel_size,
-            return_sequences=True,
-            return_state=True,
-        )
-        self.enc_norm = nn.LayerNorm([filters, lat, lon])
-
-        self.spatial_attention = SpatialAttention(in_channels=filters)
-
-        self.decoder = ConvLSTM(
-            input_dim=filters,
-            hidden_dim=filters,
-            kernel_size=kernel_size,
-            return_sequences=True,
-            return_state=False,
-        )
-        self.dec_norm = nn.LayerNorm([filters, lat, lon])
-
-        self.head = nn.Conv2d(filters, n_out, kernel_size=1)
+        # Match the old architecture exactly: 
+        # For enc_cell1, the checkpoint kernel has size [256, 71, 3, 3]
+        # In ConvLSTMCell, out_channels = 4*hidden_dim (4*64=256), in_channels = input_dim + hidden_dim. 
+        # So input_dim + 64 = 71 => input_dim = 7
+        self.enc_cell1 = ConvLSTMCell(n_in, filters, kernel_size)
+        
+        # enc_cell2 checkpoint kernel size [256, 128, 3, 3] => in_channels 128. 
+        # input_dim + 64 = 128 => input_dim = 64
+        self.enc_cell2 = ConvLSTMCell(filters, filters, kernel_size)
+        
+        # dec_cell checkpoint kernel size [256, 67, 3, 3] => in_channels 67. 
+        # input_dim + 64 = 67 => input_dim = 3 (this is the number of target features, n_out!)
+        self.dec_cell = ConvLSTMCell(n_out, filters, kernel_size)
+        
+        # final_conv checkpoint kernel size [3, 64, 3, 3] => simple 3x3 conv mapping states to output
+        self.final_conv = nn.Conv2d(filters, n_out, kernel_size=kernel_size, padding=kernel_size//2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -204,27 +199,33 @@ class Seq2SeqConvLSTM(nn.Module):
             [B, output_window, n_out, H, W]
         """
         B = x.shape[0]
-        H, W = x.shape[3], x.shape[4]
+        _, _, H, W = x.shape[1], x.shape[2], x.shape[3], x.shape[4]
 
         # --- Encoder ---
-        enc_seq, enc_h, enc_c = self.encoder(x)
-        enc_seq = self.enc_norm(enc_seq)                      # [B, T_in, F, H, W]
-
-        # --- Spatial attention on the final hidden state ---
-        context = self.spatial_attention(enc_h)                # [B, F, H, W]
-
-        # Expand context across forecast horizon
-        context_expanded = context.unsqueeze(1).repeat(1, self.output_window, 1, 1, 1)
-        # [B, T_out, F, H, W]
-
+        # Initialize hidden states
+        h1 = torch.zeros(B, self.filters, H, W, device=x.device)
+        c1 = torch.zeros(B, self.filters, H, W, device=x.device)
+        h2 = torch.zeros(B, self.filters, H, W, device=x.device)
+        c2 = torch.zeros(B, self.filters, H, W, device=x.device)
+        
+        # Process input sequence
+        for t in range(self.input_window):
+            h1, c1 = self.enc_cell1(x[:, t], (h1, c1))
+            h2, c2 = self.enc_cell2(h1, (h2, c2))
+        
         # --- Decoder ---
-        dec_out = self.decoder(context_expanded, [(enc_h, enc_c)])   # [B, T_out, F, H, W]
-        dec_out = self.dec_norm(dec_out)
-
-        # --- Forecast head (TimeDistributed Conv1x1) ---
-        # Apply Conv2D to each time step independently
+        # Initial state for decoder uses final state from encoder
+        h_dec, c_dec = h2, c2
+        
+        # Decoder input (start token, e.g., zeros)
+        dec_in = torch.zeros(B, 3, H, W, device=x.device)  # 3 variables (tmax, tmin, rh)
+        
         outputs = []
         for t in range(self.output_window):
-            out_t = self.head(dec_out[:, t, :, :, :])          # [B, n_out, H, W]
+            # Pass the previous prediction (or zeros for the first step) as input
+            h_dec, c_dec = self.dec_cell(dec_in, (h_dec, c_dec))
+            out_t = self.final_conv(h_dec)          # [B, n_out, H, W]
+            dec_in = out_t                          # Auto-regressive decoding
             outputs.append(out_t)
+            
         return torch.stack(outputs, dim=1)                      # [B, T_out, n_out, H, W]

@@ -42,7 +42,7 @@ OUTPUT_GEOJSON = PROJECT_ROOT / "public" / "data" / "today_alerts.geojson"
 
 MODEL_WEIGHTS    = ARTIFACTS_DIR / "convlstm_pytorch_best.pth"
 NORM_STATS       = ARTIFACTS_DIR / "normalization.npz"
-CLIMATOLOGY_FILE = ARTIFACTS_DIR / "seuils_climatologiques_mensuels.nc"
+CLIMATOLOGY_FILE = ARTIFACTS_DIR / "seuils_climatologiques_globaux.nc"
 
 OUTPUT_GEOJSON.parent.mkdir(parents=True, exist_ok=True)
 
@@ -106,10 +106,15 @@ def _load_climatology(month_index: int) -> Tuple[np.ndarray, np.ndarray]:
         return tmax_90p, tmin_10p
 
     ds = xr.open_dataset(CLIMATOLOGY_FILE, engine="netcdf4")
-    if "month" in ds.dims:
-        ds = ds.isel(month=month_index)
+    
+    # We must match the spatial domain of the model (37x65)
+    # The model domain is [36, -17, 27, -1] (N, W, S, E)
+    ds = ds.sel(latitude=slice(36, 27), longitude=slice(-17, -1))
+    
+    # Read the global precalculated percentiles
     tmax_90p = ds["tmax_90p"].values.astype(np.float32)
     tmin_10p = ds["tmin_10p"].values.astype(np.float32)
+
     ds.close()
     return tmax_90p, tmin_10p
 
@@ -187,7 +192,7 @@ def run_inference(tensor_path: Optional[Path] = None, device: str = "cpu") -> Pa
     model = Seq2SeqConvLSTM(
         input_window=7, output_window=7,
         lat=37, lon=65, n_in=7, n_out=3,
-        filters=32, kernel_size=3,
+        filters=64, kernel_size=3,
     )
 
     if MODEL_WEIGHTS.exists():
@@ -205,14 +210,31 @@ def run_inference(tensor_path: Optional[Path] = None, device: str = "cpu") -> Pa
     model.eval()
 
     # ---- 2. Load & prepare input tensor ----
-    #  Shape from disk:  [T_days, lat, lon, channels]  e.g. [7, 37, 65, 7]
+    #  Shape from disk:  [T_days, lat, lon, channels]  e.g. [31, 91, 161, 7]
     raw_tensor = np.load(tensor_path).astype(np.float32)
     logger.info("Loaded tensor shape: %s", raw_tensor.shape)
 
-    # Reorder to:  [B=1, T=7, C=7, H=37, W=65]
+    # Reorder to:  [B=1, T, C, H, W]
     #   raw_tensor:  [T, H, W, C] → transpose to [T, C, H, W]
     tensor_tch = raw_tensor.transpose(0, 3, 1, 2)
     tensor_tch = torch.from_numpy(tensor_tch).unsqueeze(0).to(device)
+
+    # The model was trained on 7 days of context and 37x65 resolution (0.25 deg grid).
+    if tensor_tch.shape[1] > 7:
+        tensor_tch = tensor_tch[:, -7:, ...]
+        
+    logger.info("Debug Input tensor: min=%.2f, max=%.2f, has_nan=%s", tensor_tch.min().item(), tensor_tch.max().item(), torch.isnan(tensor_tch).any().item())
+    
+    if tensor_tch.shape[-2:] != (37, 65):
+        B, T, C, H, W = tensor_tch.shape
+        tensor_tch = tensor_tch.view(B * T, C, H, W)
+        import torch.nn.functional as F
+        tensor_tch = F.interpolate(tensor_tch, size=(37, 65), mode='bilinear', align_corners=False)
+        tensor_tch = tensor_tch.view(B, T, C, 37, 65)
+
+    # Replace NaNs that were present in the source files (e.g. ocean masking)
+    # Since inputs are z-score normalized, filling with 0.0 corresponds to the historical mean.
+    tensor_tch = torch.nan_to_num(tensor_tch, nan=0.0)
 
     # ---- 3. Forward pass ----
     with torch.no_grad():
@@ -240,6 +262,10 @@ def run_inference(tensor_path: Optional[Path] = None, device: str = "cpu") -> Pa
     severity_tmax = pred_tmax - tmax_90p              # > 0 → hotter than 90th pct
     # Optional: cold-severity for frost alerts
     severity_tmin = tmin_10p - pred_tmin              # > 0 → colder than 10th pct
+    
+    logger.info("Debug pred_tmax: min=%.2f, mean=%.2f, max=%.2f", pred_tmax.min(), pred_tmax.mean(), pred_tmax.max())
+    logger.info("Debug tmax_90p: min=%.2f, mean=%.2f, max=%.2f", tmax_90p.min(), tmax_90p.mean(), tmax_90p.max())
+    logger.info("Debug predicted tmin vs tmin_10p min/max/mean: pred=(%.2f, %.2f) 10p=(%.2f, %.2f)", pred_tmin.min(), pred_tmin.max(), tmin_10p.min(), tmin_10p.max())
 
     logger.info(
         "Heatwave pixels  (severity > 0): %d / %d",
