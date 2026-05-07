@@ -10,7 +10,8 @@
 !.yarn/releases
 !.yarn/versions
 /Data-collector-pfe
-
+/backend/artifacts
+/data/*
 # testing
 /coverage
 

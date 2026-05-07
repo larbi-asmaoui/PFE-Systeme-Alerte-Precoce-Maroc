@@ -1,0 +1,123 @@
+version: "3.8"
+
+services:
+  # ----------------------------------------------------
+  # 1. INFRASTRUCTURE: Zookeeper & Kafka
+  # ----------------------------------------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: sap_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: sap_kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # kafka:29092 for internal docker communication, localhost:9092 for your host machine
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # ----------------------------------------------------
+  # 2. FRONTEND: Next.js App
+  # ----------------------------------------------------
+  frontend:
+    image: node:20-alpine
+    container_name: sap_frontend
+    working_dir: /app
+    volumes:
+      - .:/app
+      - /app/node_modules # Prevents local node_modules from overriding container's
+    ports:
+      - "3000:3000"
+    command: >
+      sh -c "npm install && npm run dev"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+
+  # ----------------------------------------------------
+  # 3. BACKEND: FastAPI App
+  # ----------------------------------------------------
+  backend:
+    image: python:3.10-slim
+    container_name: sap_backend
+    working_dir: /app
+    volumes:
+      # Mount backend, project data, and public map JSONs
+      - ./backend:/app
+      - ./data:/data
+      - ./public:/public
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt && 
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  # ----------------------------------------------------
+  # 4. STREAMING: Spark Processor
+  # ----------------------------------------------------
+  spark_processor:
+    # We use a Jupyter PySpark image because it correctly pre-installs Java 11+, Python, and PySpark
+    image: jupyter/pyspark-notebook:python-3.10
+    container_name: sap_spark_processor
+    user: root
+    working_dir: /app
+    volumes:
+      - ./ingestion:/app
+      - ./data:/data
+      - ./backend/artifacts:/backend/artifacts
+    environment:
+      - KAFKA_BROKER=kafka:29092
+    command: >
+      bash -c "pip install --no-cache-dir -r requirements.txt && 
+               python spark_processor.py"
+    depends_on:
+      - kafka
+
+  # ----------------------------------------------------
+  # 5. JOBS: Producer & Predictor
+  # These run on-demand, they aren't permanent servers
+  # Run them using: docker-compose run --rm producer (or predictor)
+  # ----------------------------------------------------
+  producer:
+    image: python:3.10-slim
+    container_name: sap_producer
+    working_dir: /app
+    volumes:
+      - ./ingestion:/app
+      - ./data:/data
+    environment:
+      - KAFKA_BROKER=kafka:29092
+    # The 'profiles' flag keeps it from running automatically with 'up -d'
+    profiles:
+      - jobs
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt && 
+             python producer.py"
+
+  predictor:
+    image: python:3.10-slim
+    container_name: sap_predictor
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+      - ./public:/public
+    environment:
+      - INFERENCE_DEVICE=cpu
+    profiles:
+      - jobs
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt && 
+             python predictor.py"
