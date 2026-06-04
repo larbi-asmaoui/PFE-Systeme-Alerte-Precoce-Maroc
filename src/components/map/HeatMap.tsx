@@ -1,14 +1,23 @@
-// FILE: src/components/map/HeatMap.tsx
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
-import "leaflet/dist/leaflet.css"; // MUST import Leaflet CSS
-import { Box, Typography } from "@mui/material";
+"use client";
 
-interface RegionData {
+import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import { Box, Typography, Grid } from "@mui/material";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+export interface RegionData {
   id: number;
   name: string;
   coords: [number, number];
   alert: string;
   temp: number;
+  tmin?: number;
+  rh?: number;
+  heat_index?: number;
+  severity?: number;
+  date?: string;
 }
 
 interface HeatMapProps {
@@ -22,9 +31,24 @@ const alertColors: Record<string, string> = {
   none: "#e0e0e0",
 };
 
+const alertLabels: Record<string, string> = {
+  red: "Extrême",
+  orange: "Sévère",
+  yellow: "Modérée",
+  none: "Aucune",
+};
+
+const getRadius = (alert: string): number => {
+  if (alert === "red") return 25;
+  if (alert === "orange") return 18;
+  return 12;
+};
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export default function HeatMap({ regions }: HeatMapProps) {
   return (
-    // zIndex: 0 ensures the map stays behind your floating Material-UI papers
     <Box
       sx={{
         height: "100%",
@@ -43,21 +67,20 @@ export default function HeatMap({ regions }: HeatMapProps) {
           style: { height: "100%", width: "100%" },
         }}
       >
-        {/* Clean, light-grey map tiles to make weather data pop */}
         <TileLayer
           {...{
             url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
           }}
         />
 
-        {/* Draw circles for each region */}
         {regions.map((region) => (
           <CircleMarker
             key={region.id}
             {...{
               center: region.coords,
-              radius: region.alert === "red" ? 25 : region.alert === "orange" ? 18 : 12,
+              radius: getRadius(region.alert),
             }}
             pathOptions={{
               color: alertColors[region.alert],
@@ -67,12 +90,62 @@ export default function HeatMap({ regions }: HeatMapProps) {
             }}
           >
             <Popup>
-              <Typography variant="subtitle2" fontWeight="bold">
-                {region.name}
-              </Typography>
-              <Typography variant="body2" color="error">
-                {region.temp}°C Prévu
-              </Typography>
+              <Box sx={{ minWidth: 160 }}>
+                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                  {region.name}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: alertColors[region.alert],
+                    fontWeight: 600,
+                    mb: 0.5,
+                  }}
+                >
+                  {alertLabels[region.alert]} — {region.temp.toFixed(1)}°C
+                </Typography>
+
+                <Grid container spacing={0.5}>
+                  <Grid size={6}>
+                    <Typography variant="caption" color="text.secondary">
+                      T<sub>max</sub>
+                    </Typography>
+                    <Typography variant="body2" fontWeight={600}>
+                      {region.temp.toFixed(1)}°C
+                    </Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="caption" color="text.secondary">
+                      T<sub>min</sub>
+                    </Typography>
+                    <Typography variant="body2" fontWeight={600}>
+                      {region.tmin?.toFixed(1) ?? "—"}°C
+                    </Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="caption" color="text.secondary">
+                      Heat Index
+                    </Typography>
+                    <Typography variant="body2" fontWeight={600}>
+                      {region.heat_index?.toFixed(1) ?? "—"}°C
+                    </Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="caption" color="text.secondary">
+                      Humidité
+                    </Typography>
+                    <Typography variant="body2" fontWeight={600}>
+                      {region.rh?.toFixed(0) ?? "—"}%
+                    </Typography>
+                  </Grid>
+                </Grid>
+
+                {region.date && (
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                    {region.date}
+                  </Typography>
+                )}
+              </Box>
             </Popup>
           </CircleMarker>
         ))}

@@ -4,3 +4,6 @@ pyspark
 xarray
 netCDF4
 numpy
+requests
+cfgrib
+eccodes
