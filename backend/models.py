@@ -229,3 +229,34 @@ class Seq2SeqConvLSTM(nn.Module):
             outputs.append(out_t)
             
         return torch.stack(outputs, dim=1)                      # [B, T_out, n_out, H, W]
+
+
+class CNN3D(nn.Module):
+    """3D ConvNet baseline (matches training notebook architecture)."""
+
+    def __init__(self, n_in: int = 7, n_out: int = 3, output_window: int = 7):
+        super().__init__()
+        self.output_window = output_window
+        self.n_out = n_out
+
+        self.conv3d = nn.Sequential(
+            nn.Conv3d(n_in, 32, (3, 3, 3), padding=(1, 1, 1)),
+            nn.BatchNorm3d(32),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(32, 64, (3, 3, 3), padding=(1, 1, 1)),
+            nn.BatchNorm3d(64),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(64, 128, (3, 3, 3), padding=(1, 1, 1)),
+            nn.BatchNorm3d(128),
+            nn.ReLU(inplace=True),
+        )
+        self.head = nn.Conv2d(128, output_window * n_out, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: [B, T, C, H, W]
+        B, T, C, H, W = x.size()
+        x = x.permute(0, 2, 1, 3, 4)  # [B, C, T, H, W]
+        x = self.conv3d(x)
+        x = F.adaptive_avg_pool3d(x, (1, H, W)).squeeze(2)
+        x = self.head(x)  # [B, output_window*n_out, H, W]
+        return x.view(B, self.output_window, self.n_out, H, W)
