@@ -172,7 +172,7 @@ def _download_with_source(date: str, cycle: str, out_path: Path, source: str) ->
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
-def run(days_back: int = 7, source: str = "auto") -> None:
+def run(days_back: int = 7, source: str = "auto", no_kafka: bool = False) -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
 
     start_date, end_date = _date_range(days_back)
@@ -203,20 +203,23 @@ def run(days_back: int = 7, source: str = "auto") -> None:
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    producer = Producer({"bootstrap.servers": KAFKA_BROKER})
-    try:
-        producer.produce(
-            KAFKA_TOPIC,
-            key="morocco_gfs",
-            value=json.dumps(message, indent=2),
-            callback=_delivery_report,
-        )
-        producer.flush(timeout=30)
-    except Exception:
-        logger.exception("Failed to produce Kafka message")
-        raise
-    finally:
-        producer.purge()
+    if not no_kafka:
+        producer = Producer({"bootstrap.servers": KAFKA_BROKER})
+        try:
+            producer.produce(
+                KAFKA_TOPIC,
+                key="morocco_gfs",
+                value=json.dumps(message, indent=2),
+                callback=_delivery_report,
+            )
+            producer.flush(timeout=30)
+        except Exception:
+            logger.exception("Failed to produce Kafka message")
+            raise
+        finally:
+            producer.purge()
+    else:
+        logger.info("Skipping Kafka (--no-kafka). Message: %s", json.dumps(message, indent=2))
 
     logger.info("GFS ingestion completed successfully.")
 
@@ -238,13 +241,18 @@ def _parse_args() -> argparse.Namespace:
         default=GFS_SOURCE,
         help="Download source: auto (default), nomads, aws",
     )
+    parser.add_argument(
+        "--no-kafka",
+        action="store_true",
+        help="Skip Kafka message production",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_args()
     try:
-        run(days_back=args.days, source=args.source)
+        run(days_back=args.days, source=args.source, no_kafka=args.no_kafka)
     except Exception:
         logger.exception("Fatal error during GFS ingestion")
         sys.exit(1)
