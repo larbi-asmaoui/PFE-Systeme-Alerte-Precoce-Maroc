@@ -90,9 +90,9 @@ function Sidebar({ open, handleDrawerToggle }: SidebarProps) {
           typeof window !== "undefined" ? window.document.body : undefined
         }
         variant="temporary"
-        open={open}
+        open={!matchUpMd && open}
         onClose={handleDrawerToggle}
-        ModalProps={{ keepMounted: true }}
+        ModalProps={{ keepMounted: true, disableScrollLock: true }}
         sx={{
           display: { xs: "block", md: "none" },
           "& .MuiDrawer-paper": {
