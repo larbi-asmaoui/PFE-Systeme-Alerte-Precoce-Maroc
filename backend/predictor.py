@@ -38,17 +38,18 @@ import torch
 import xarray as xr
 
 from app.core.meteo import (
-    CH_RH,
-    CH_TMAX,
-    CH_TMIN,
+    CH_HEAT_INDEX,
+    CH_WIND_CHILL,
     FORECAST_HORIZON,
     GRID_COLS,
     GRID_LATS,
     GRID_LONS,
     GRID_ROWS,
     MOROCCO_CITIES,
+    STAT_HEAT_INDEX_IDX,
+    STAT_WIND_CHILL_IDX,
+    felt_severity,
     nearest_grid_index,
-    noaa_heat_index,
     severity_to_alert_level,
 )
 from app.core.storage import (
@@ -69,7 +70,7 @@ ARTIFACTS_DIR = BACKEND_DIR / "artifacts"
 READY_DIR = PROJECT_ROOT / "data" / "ready_for_inference"
 OUTPUT_GEOJSON = PROJECT_ROOT / "public" / "data" / "today_alerts.geojson"
 
-MODEL_WEIGHTS = ARTIFACTS_DIR / "cnn3d_best.pth"
+MODEL_WEIGHTS = ARTIFACTS_DIR / "convlstm_best.pt"
 NORM_STATS = ARTIFACTS_DIR / "normalization.npz"
 CLIMATOLOGY_FILE = ARTIFACTS_DIR / "seuils_climatologiques_globaux.nc"
 
@@ -137,10 +138,43 @@ def _date_slug_from_name(name: str) -> str:
     return datetime.utcnow().strftime("%Y%m%d")
 
 
+N_INPUT_CHANNELS = 13  # must match ingestion_2/era5land_processor.py
+
+
+def _target_indices() -> list[int]:
+    """
+    Indices of the predicted targets (HeatIndex, WindChill) inside the 13-channel
+    stats, resolved from normalization.npz's channels/target_channels. Falls back
+    to [11, 12] (the canonical positions) when those arrays are absent.
+    """
+    try:
+        s = np.load(NORM_STATS, allow_pickle=True)
+        if "channels" in s and "target_channels" in s:
+            chans = [str(x) for x in s["channels"]]
+            tgts = [str(x) for x in s["target_channels"]]
+            idx = [chans.index(t) for t in tgts]
+            if len(idx) == 2:
+                return idx
+    except (OSError, ValueError, KeyError):
+        pass
+    return [STAT_HEAT_INDEX_IDX, STAT_WIND_CHILL_IDX]
+
+
 def _load_normalisation_stats() -> Tuple[np.ndarray, np.ndarray]:
     stats = np.load(NORM_STATS, allow_pickle=True)
     mean = stats["mean"].astype(np.float32)
     std = stats["std"].astype(np.float32)
+    # Mirror the processor: pad/truncate to the 13-channel input order so the
+    # target indices (HeatIndex=11, WindChill=12) are always addressable. A
+    # shorter stats file (e.g. 11 raw channels) means the two derived targets
+    # were left in physical units -> identity (mean 0, std 1) denormalisation.
+    n = len(mean)
+    if n < N_INPUT_CHANNELS:
+        mean = np.pad(mean, (0, N_INPUT_CHANNELS - n), constant_values=0.0)
+        std = np.pad(std, (0, N_INPUT_CHANNELS - n), constant_values=1.0)
+    elif n > N_INPUT_CHANNELS:
+        mean = mean[:N_INPUT_CHANNELS]
+        std = std[:N_INPUT_CHANNELS]
     std = np.where(std < 1e-6, 1.0, std)
     return mean, std
 
@@ -168,10 +202,8 @@ def _load_climatology(path: Path) -> Tuple[np.ndarray, np.ndarray]:
 # City-based GeoJSON builder
 # ---------------------------------------------------------------------------
 def _build_city_geojson(
-    tmax_90p: np.ndarray,   # [lat, lon]
-    pred_tmax: np.ndarray,  # [7, lat, lon]
-    pred_tmin: np.ndarray,  # [7, lat, lon]
-    pred_rh: np.ndarray,    # [7, lat, lon]
+    pred_hi: np.ndarray,    # [7, lat, lon] predicted Heat Index
+    pred_wc: np.ndarray,    # [7, lat, lon] predicted Wind Chill
 ) -> dict:
     """One GeoJSON Feature per Moroccan city, each with its 7-day forecast."""
     start_date = datetime.utcnow()
@@ -180,20 +212,15 @@ def _build_city_geojson(
     for city in MOROCCO_CITIES:
         r, c = nearest_grid_index(city["lat"], city["lon"])
 
-        if np.isnan(tmax_90p[r, c]) or tmax_90p[r, c] < 5:
-            continue
-
         day_forecasts = []
         max_severity = -999.0
 
         for d in range(FORECAST_HORIZON):
-            tmax_val = float(pred_tmax[d, r, c])
-            tmin_val = float(pred_tmin[d, r, c])
-            rh_val = float(pred_rh[d, r, c])
+            hi_val = float(pred_hi[d, r, c])
+            wc_val = float(pred_wc[d, r, c])
 
-            hi_val = noaa_heat_index(tmax_val, rh_val)
-
-            severity = tmax_val - float(tmax_90p[r, c])
+            # Severity is derived solely from the predicted felt-temperatures.
+            severity = felt_severity(hi_val, wc_val)
             max_severity = max(max_severity, severity)
 
             forecast_date = (start_date + timedelta(days=d)).strftime("%Y-%m-%d")
@@ -201,10 +228,8 @@ def _build_city_geojson(
                 {
                     "day": d,
                     "date": forecast_date,
-                    "tmax": round(tmax_val, 1),
-                    "tmin": round(tmin_val, 1),
-                    "rh": round(rh_val, 1),
                     "heat_index": round(hi_val, 1),
+                    "wind_chill": round(wc_val, 1),
                     "severity": round(max(0.0, severity), 1),
                     "alert_level": severity_to_alert_level(severity),
                 }
@@ -318,11 +343,11 @@ def _load_model(device: str):
         model_type = _infer_model_type(state)
 
         if model_type == "cnn3d":
-            model = CNN3D(n_in=7, n_out=3, output_window=FORECAST_HORIZON)
+            model = CNN3D(n_in=13, n_out=2, output_window=FORECAST_HORIZON)
         else:
             model = Seq2SeqConvLSTM(
                 input_window=7, output_window=FORECAST_HORIZON,
-                lat=GRID_ROWS, lon=GRID_COLS, n_in=7, n_out=3,
+                lat=GRID_ROWS, lon=GRID_COLS, n_in=11, n_out=2,
                 filters=64, kernel_size=3,
             )
         model.load_state_dict(state)
@@ -335,7 +360,7 @@ def _load_model(device: str):
         )
         model = Seq2SeqConvLSTM(
             input_window=7, output_window=FORECAST_HORIZON,
-            lat=GRID_ROWS, lon=GRID_COLS, n_in=7, n_out=3,
+            lat=GRID_ROWS, lon=GRID_COLS, n_in=11, n_out=2,
             filters=64, kernel_size=3,
         )
 
@@ -392,7 +417,6 @@ def run_inference(
 
         # ---- 1. Resolve inputs from the DataLake ----
         local_tensor, date_slug = _resolve_tensor(storage, tensor_path, tmp_dir)
-        climatology_path = _resolve_climatology(storage, tmp_dir)
         logger.info("Tensor: %s | date_slug=%s", local_tensor.name, date_slug)
 
         # ---- 2. Model + input ----
@@ -400,16 +424,23 @@ def run_inference(
         tensor_tch = _prepare_input(local_tensor, device)
 
         # ---- 3. Forward pass ----
+        # The 13-channel tensor carries 11 model inputs (ch 0-10) plus the two
+        # prediction targets (HeatIndex ch 11, WindChill ch 12). Feed inputs only.
         with torch.no_grad():
-            pred_norm = model(tensor_tch)  # [1, 7, 3, 37, 65]
+            pred_norm = model(tensor_tch[:, :, :N_INPUT_CHANNELS - 2, :, :])  # [1, 7, 2, 37, 65]
 
         # ---- 4. Denormalise ----
+        # The model outputs the 2 target channels (HeatIndex, WindChill) in z-score
+        # space. Denormalise with those targets' own stats, located via the
+        # target_channels saved in normalization.npz (HeatIndex@11, WindChill@12).
+        # The targets are already in °C, so no Kelvin conversion.
         mean_all, std_all = _load_normalisation_stats()
-        mean_targ = torch.from_numpy(mean_all[:3]).view(1, 1, 3, 1, 1).to(device)
-        std_targ = torch.from_numpy(std_all[:3]).view(1, 1, 3, 1, 1).to(device)
+        targ_idx = _target_indices()
+        mean_targ = torch.from_numpy(mean_all[targ_idx]).view(1, 1, 2, 1, 1).to(device)
+        std_targ = torch.from_numpy(std_all[targ_idx]).view(1, 1, 2, 1, 1).to(device)
 
         pred_phys = pred_norm * std_targ + mean_targ
-        pred_7d = pred_phys[0].cpu().numpy().astype(np.float32)  # [7, 3, 37, 65]
+        pred_7d = pred_phys[0].cpu().numpy().astype(np.float32)  # [7, 2, 37, 65]
         logger.info("Denormalised prediction shape: %s", pred_7d.shape)
 
         # ---- 5. Archive raw denormalised tensor to the DataLake ----
@@ -423,16 +454,15 @@ def run_inference(
             np.save(local_pred, pred_7d)
             logger.info("Saved raw prediction locally -> %s", local_pred)
 
-        # ---- 6. Climatology + city GeoJSON ----
-        pred_tmax = pred_7d[:, CH_TMAX, :, :]
-        pred_tmin = pred_7d[:, CH_TMIN, :, :]
-        pred_rh = pred_7d[:, CH_RH, :, :]
-        logger.info("Debug pred_tmax (mean across days): %.2f", pred_tmax.mean())
+        # ---- 6. City GeoJSON (severity from felt-temperatures only) ----
+        pred_hi = pred_7d[:, CH_HEAT_INDEX, :, :]
+        pred_wc = pred_7d[:, CH_WIND_CHILL, :, :]
+        logger.info(
+            "Debug pred heat_index/wind_chill mean: %.2f / %.2f",
+            pred_hi.mean(), pred_wc.mean(),
+        )
 
-        tmax_90p, _ = _load_climatology(climatology_path)
-        logger.info("Debug tmax_90p mean: %.2f", tmax_90p.mean())
-
-        geojson = _build_city_geojson(tmax_90p, pred_tmax, pred_tmin, pred_rh)
+        geojson = _build_city_geojson(pred_hi, pred_wc)
 
     # ---- 7. Persist serving artifacts ----
     with open(OUTPUT_GEOJSON, "w", encoding="utf-8") as fh:

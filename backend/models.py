@@ -164,8 +164,8 @@ class Seq2SeqConvLSTM(nn.Module):
         output_window: int = 7,
         lat: int = 37,
         lon: int = 65,
-        n_in: int = 7,
-        n_out: int = 3,
+        n_in: int = 11,
+        n_out: int = 2,
         filters: int = 64, # Trained architecture used 64 filters!
         kernel_size: int = 3,
     ):
@@ -174,22 +174,19 @@ class Seq2SeqConvLSTM(nn.Module):
         self.output_window = output_window
         self.filters = filters
 
-        # Match the old architecture exactly: 
-        # For enc_cell1, the checkpoint kernel has size [256, 71, 3, 3]
-        # In ConvLSTMCell, out_channels = 4*hidden_dim (4*64=256), in_channels = input_dim + hidden_dim. 
-        # So input_dim + 64 = 71 => input_dim = 7
-        self.enc_cell1 = ConvLSTMCell(n_in, filters, kernel_size)
-        
-        # enc_cell2 checkpoint kernel size [256, 128, 3, 3] => in_channels 128. 
-        # input_dim + 64 = 128 => input_dim = 64
-        self.enc_cell2 = ConvLSTMCell(filters, filters, kernel_size)
-        
-        # dec_cell checkpoint kernel size [256, 67, 3, 3] => in_channels 67. 
-        # input_dim + 64 = 67 => input_dim = 3 (this is the number of target features, n_out!)
-        self.dec_cell = ConvLSTMCell(n_out, filters, kernel_size)
-        
-        # final_conv checkpoint kernel size [3, 64, 3, 3] => simple 3x3 conv mapping states to output
-        self.final_conv = nn.Conv2d(filters, n_out, kernel_size=kernel_size, padding=kernel_size//2)
+        # Submodule names match the convlstm_best.pt checkpoint (enc1/enc2/dec/head).
+        # ConvLSTMCell: out_channels = 4*hidden (4*64=256), in_channels = input_dim + hidden.
+        # enc1.conv.weight [256, 75, 3, 3] => input_dim + 64 = 75 => n_in = 11
+        self.enc1 = ConvLSTMCell(n_in, filters, kernel_size)
+
+        # enc2.conv.weight [256, 128, 3, 3] => input_dim + 64 = 128 => input_dim = 64
+        self.enc2 = ConvLSTMCell(filters, filters, kernel_size)
+
+        # dec.conv.weight  [256, 66, 3, 3] => input_dim + 64 = 66 => input_dim = 2 (== n_out)
+        self.dec = ConvLSTMCell(n_out, filters, kernel_size)
+
+        # head.weight      [2, 64, 3, 3]  => 3x3 conv projecting hidden state -> n_out targets
+        self.head = nn.Conv2d(filters, n_out, kernel_size=kernel_size, padding=kernel_size//2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -210,21 +207,22 @@ class Seq2SeqConvLSTM(nn.Module):
         
         # Process input sequence
         for t in range(self.input_window):
-            h1, c1 = self.enc_cell1(x[:, t], (h1, c1))
-            h2, c2 = self.enc_cell2(h1, (h2, c2))
-        
+            h1, c1 = self.enc1(x[:, t], (h1, c1))
+            h2, c2 = self.enc2(h1, (h2, c2))
+
         # --- Decoder ---
         # Initial state for decoder uses final state from encoder
         h_dec, c_dec = h2, c2
-        
-        # Decoder input (start token, e.g., zeros)
-        dec_in = torch.zeros(B, 3, H, W, device=x.device)  # 3 variables (tmax, tmin, rh)
-        
+
+        # Decoder input (start token, e.g., zeros). Its channel width must match
+        # the decoder cell's input_dim (== n_out), never a hardcoded value.
+        dec_in = torch.zeros(B, self.dec.input_dim, H, W, device=x.device)
+
         outputs = []
         for t in range(self.output_window):
             # Pass the previous prediction (or zeros for the first step) as input
-            h_dec, c_dec = self.dec_cell(dec_in, (h_dec, c_dec))
-            out_t = self.final_conv(h_dec)          # [B, n_out, H, W]
+            h_dec, c_dec = self.dec(dec_in, (h_dec, c_dec))
+            out_t = self.head(h_dec)                # [B, n_out, H, W]
             dec_in = out_t                          # Auto-regressive decoding
             outputs.append(out_t)
             

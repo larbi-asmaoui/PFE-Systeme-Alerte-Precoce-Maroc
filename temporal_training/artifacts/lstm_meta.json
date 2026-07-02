@@ -1,0 +1,35 @@
+{
+  "framework": "tensorflow",
+  "best_model": "GRU",
+  "features": [
+    "latitude",
+    "longitude",
+    "elevation_m",
+    "Tmax",
+    "Tmin",
+    "RH",
+    "WindSpeed_ms",
+    "Solar_Jm2",
+    "z_500hPa",
+    "t_850hPa"
+  ],
+  "targets": [
+    "HeatIndex",
+    "WindChill"
+  ],
+  "scaler": "minmax",
+  "feature_range": [
+    0,
+    1
+  ],
+  "split": {
+    "train": 0.7,
+    "val": 0.15,
+    "test": 0.15,
+    "scheme": "per-station chronological"
+  },
+  "input_window": 7,
+  "output_window": 7,
+  "hidden": 128,
+  "n_layers": 3
+}

@@ -2,8 +2,8 @@
 ERA5 / ERA5-Land ingestion producer for SAP Morocco.
 
 Downloads hourly data from the Copernicus Climate Data Store (CDS) for the
-Morocco bounding-box region, saves one NetCDF file per day, and emits a Kafka
-event with the file manifest.
+Morocco bounding-box region and saves one NetCDF file per day. Runs as a plain
+sequential batch step (no Kafka); the downstream processor discovers the files.
 
 Two datasets supported:
     era5-land   (default)  0.1° resolution, ~5-day latency, all 8 variables
@@ -24,21 +24,16 @@ Usage:
     python era5land_producer.py --days 7                          # ERA5-Land
     python era5land_producer.py --days 7 --dataset era5           # near-real-time ERA5
     python era5land_producer.py --start 2026-06-10 --end 2026-06-16
-    python era5land_producer.py --days 7 --no-kafka
 
 Environment:
     CDSAPI_URL      — CDS API endpoint
     CDSAPI_KEY      — CDS API key (UID:API_KEY)
-    KAFKA_BROKER    — bootstrap server (default: localhost:9092)
-    KAFKA_TOPIC     — topic name (default: era5land-raw-data)
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-import os
 import sys
 import time
 import zipfile
@@ -47,7 +42,6 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import cdsapi
-from confluent_kafka import Producer
 
 # ---------------------------------------------------------------------------
 # Paths & constants
@@ -100,9 +94,6 @@ CHANNELS = [
     "volumetric_soil_water_layer_1",
 ]
 
-KAFKA_BROKER = os.getenv("KAFKA_BROKER", "localhost:9092")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC_ERA5LAND", "era5land-raw-data")
-
 MAX_RETRIES = 3
 RETRY_DELAY_S = 30
 
@@ -115,16 +106,6 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 logger = logging.getLogger("ERA5L-Producer")
-
-
-# ---------------------------------------------------------------------------
-# Kafka helpers
-# ---------------------------------------------------------------------------
-def _delivery_report(err: object, msg: object) -> None:
-    if err is not None:
-        logger.error("Kafka delivery failed: %s", err)
-    else:
-        logger.info("Delivered to %s [%d] @ offset %d", msg.topic(), msg.partition(), msg.offset())
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +199,6 @@ def run(
     days_back: int = 7,
     start: Optional[str] = None,
     end: Optional[str] = None,
-    no_kafka: bool = False,
     dataset: str = "era5-land",
 ) -> None:
     ds_info = DATASETS[dataset]
@@ -235,38 +215,9 @@ def run(
         downloaded = _download_day(day, out_path, dataset)
         files.append(str(downloaded.resolve()))
 
-    message = {
-        "event": f"new_{prefix}_data",
-        "dataset": dataset,
-        "start_date": start_date,
-        "end_date": end_date,
-        "days_count": len(days),
-        "variables": CHANNELS,
-        "cds_variables": variables if 'variables' in dir() else ERA5LAND_VARS_CDS,
-        "bbox": MOROCCO_BBOX,
-        "files": files,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    if not no_kafka:
-        producer = Producer({"bootstrap.servers": KAFKA_BROKER})
-        try:
-            producer.produce(
-                KAFKA_TOPIC,
-                key=f"morocco_{prefix}",
-                value=json.dumps(message, indent=2),
-                callback=_delivery_report,
-            )
-            producer.flush(timeout=30)
-        except Exception:
-            logger.exception("Failed to produce Kafka message")
-            raise
-        finally:
-            producer.purge()
-    else:
-        logger.info("Skipping Kafka (--no-kafka). Payload: %s", json.dumps(message, indent=2))
-
-    logger.info("%s ingestion completed — %d files", dataset, len(files))
+    logger.info("%s ingestion completed — %d files | window %s → %s", dataset, len(files), start_date, end_date)
+    for f in files:
+        logger.info("  %s", f)
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +228,6 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--days", type=int, default=7, help="Number of full days to download (default: 7)")
     parser.add_argument("--start", type=str, default=None, help="Start date YYYY-MM-DD (overrides --days)")
     parser.add_argument("--end", type=str, default=None, help="End date YYYY-MM-DD (default: auto)")
-    parser.add_argument("--no-kafka", action="store_true", help="Skip Kafka message production")
     parser.add_argument(
         "--dataset",
         choices=["era5-land", "era5"],
@@ -290,7 +240,7 @@ def _parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = _parse_args()
     try:
-        run(days_back=args.days, start=args.start, end=args.end, no_kafka=args.no_kafka, dataset=args.dataset)
+        run(days_back=args.days, start=args.start, end=args.end, dataset=args.dataset)
     except Exception:
         logger.exception("Fatal error during ERA5 ingestion")
         sys.exit(1)

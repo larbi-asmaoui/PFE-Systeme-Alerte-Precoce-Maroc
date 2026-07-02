@@ -1,0 +1,4 @@
+modèle,params(M),RMSE_heat_index,MAE_heat_index,R2_heat_index
+LSTM,0.335,0.049,0.036,0.615
+TCN,0.103,0.082,0.061,-0.054
+TFT,0.349,0.247,0.219,-12.521

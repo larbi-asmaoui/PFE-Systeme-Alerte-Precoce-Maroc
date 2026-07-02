@@ -1,0 +1,51 @@
+{
+  "framework": "tensorflow",
+  "best_model": "LSTM",
+  "models": {
+    "LSTM": {
+      "path": "models/LSTM.keras",
+      "rmse_mean": 0.049,
+      "params": 334727
+    },
+    "TCN": {
+      "path": "models/TCN.keras",
+      "rmse_mean": 0.082,
+      "params": 103047
+    },
+    "TFT": {
+      "path": "models/TFT.keras",
+      "rmse_mean": 0.247,
+      "params": 349447
+    }
+  },
+  "features": [
+    "latitude",
+    "longitude",
+    "elevation",
+    "tmax_c",
+    "dewp_c",
+    "humidity_pct",
+    "wind_speed_ms",
+    "press_hpa",
+    "heat_index"
+  ],
+  "targets": [
+    "heat_index"
+  ],
+  "scaler": "minmax",
+  "feature_range": [
+    0,
+    1
+  ],
+  "split": {
+    "train": 0.7,
+    "val": 0.15,
+    "test": 0.15,
+    "scheme": "per-station chronological"
+  },
+  "input_window": 7,
+  "output_window": 7,
+  "hidden": 128,
+  "n_layers": 3,
+  "dataset": "data/cleandata_gsod_by_station"
+}

@@ -28,17 +28,16 @@ import xarray as xr
 from fastapi import APIRouter, HTTPException, Query
 
 from app.core.meteo import (
-    CH_RH,
-    CH_TMAX,
-    CH_TMIN,
+    CH_HEAT_INDEX,
+    CH_WIND_CHILL,
     FORECAST_HORIZON,
     GRID_COLS,
     GRID_LATS,
     GRID_LONS,
     GRID_ROWS,
+    felt_severity,
     in_domain,
     nearest_grid_index,
-    noaa_heat_index,
     severity_to_alert_level,
 )
 from app.core.storage import (
@@ -104,7 +103,7 @@ async def get_current_alerts() -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 def _load_prediction_bundle() -> Dict[str, Any]:
     """
-    Fetch the latest raw prediction tensor [7, 3, 37, 65] and the climatology
+    Fetch the latest raw prediction tensor [7, 2, 37, 65] and the climatology
     percentile maps from MinIO, with a short-lived in-process cache.
     """
     storage = get_storage()
@@ -130,7 +129,7 @@ def _load_prediction_bundle() -> Dict[str, Any]:
 
         # ---- (re)load raw prediction tensor ----
         pred = np.load(io.BytesIO(storage.download_bytes(pred_key)))
-        if pred.shape != (FORECAST_HORIZON, 3, GRID_ROWS, GRID_COLS):
+        if pred.shape != (FORECAST_HORIZON, 2, GRID_ROWS, GRID_COLS):
             logger.error("Unexpected prediction shape %s for %s", pred.shape, pred_key)
             raise HTTPException(status_code=500, detail="Corrupted prediction tensor")
 
@@ -163,8 +162,8 @@ async def get_point_forecast(
     """
     Compute the 7-day forecast for the grid cell nearest to (lat, lon).
 
-    Returns Tmax, Tmin, RH, Heat Index and the alert level for each of the
-    7 forecast days, derived on the fly from the latest archived prediction
+    Returns the predicted Heat Index, Wind Chill and the alert level for each of
+    the 7 forecast days, derived on the fly from the latest archived prediction
     tensor and the climatology percentiles stored in MinIO.
     """
     if not in_domain(lat, lon):
@@ -177,9 +176,7 @@ async def get_point_forecast(
         )
 
     bundle = _load_prediction_bundle()
-    pred = bundle["pred"]            # [7, 3, 37, 65]
-    tmax_90p = bundle["tmax_90p"]    # [37, 65]
-    tmin_10p = bundle["tmin_10p"]    # [37, 65]
+    pred = bundle["pred"]            # [7, 2, 37, 65]
 
     row, col = nearest_grid_index(lat, lon)
     start_date = datetime.utcnow()
@@ -188,25 +185,19 @@ async def get_point_forecast(
     max_severity = -999.0
 
     for d in range(FORECAST_HORIZON):
-        tmax_val = float(pred[d, CH_TMAX, row, col])
-        tmin_val = float(pred[d, CH_TMIN, row, col])
-        rh_val = float(pred[d, CH_RH, row, col])
+        hi_val = float(pred[d, CH_HEAT_INDEX, row, col])
+        wc_val = float(pred[d, CH_WIND_CHILL, row, col])
 
-        hi_val = noaa_heat_index(tmax_val, rh_val)
-
-        heat_severity = tmax_val - float(tmax_90p[row, col])
-        cold_severity = float(tmin_10p[row, col]) - tmin_val
-        severity = max(heat_severity, cold_severity)
+        # Severity derived solely from the predicted felt-temperatures.
+        severity = felt_severity(hi_val, wc_val)
         max_severity = max(max_severity, severity)
 
         forecast.append(
             {
                 "day": d,
                 "date": (start_date + timedelta(days=d)).strftime("%Y-%m-%d"),
-                "tmax": round(tmax_val, 1),
-                "tmin": round(tmin_val, 1),
-                "rh": round(rh_val, 1),
                 "heat_index": round(hi_val, 1),
+                "wind_chill": round(wc_val, 1),
                 "severity": round(max(0.0, severity), 1),
                 "alert_level": severity_to_alert_level(severity),
             }

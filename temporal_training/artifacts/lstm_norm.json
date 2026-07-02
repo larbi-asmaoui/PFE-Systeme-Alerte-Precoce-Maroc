@@ -1,0 +1,72 @@
+{
+  "features": [
+    "Tmax",
+    "Tmin",
+    "Tmean",
+    "RH",
+    "WindSpeed_ms",
+    "u_wind",
+    "v_wind",
+    "Press_hPa",
+    "Solar_Jm2",
+    "Precipitation_mm",
+    "latitude",
+    "longitude",
+    "elevation_m",
+    "distance_to_ocean_km",
+    "doy_sin",
+    "doy_cos"
+  ],
+  "targets": [
+    "HeatIndex",
+    "WindChill"
+  ],
+  "feat_mean": {
+    "Tmax": 24.24868975587497,
+    "Tmin": 14.002516860597762,
+    "Tmean": 18.49240374172941,
+    "RH": 63.308610905772305,
+    "WindSpeed_ms": 4.057513392653433,
+    "u_wind": 0.4747009260223236,
+    "v_wind": -1.4377518232313453,
+    "Press_hPa": 962.0190394706822,
+    "Solar_Jm2": 19642031.15400411,
+    "Precipitation_mm": 1.0646817248459957,
+    "latitude": 32.12113333333333,
+    "longitude": -7.496600000000003,
+    "elevation_m": 487.854,
+    "distance_to_ocean_km": 74.606,
+    "doy_sin": 4.415141123803701e-06,
+    "doy_cos": -5.063629074792784e-08
+  },
+  "feat_std": {
+    "Tmax": 7.061817116164002,
+    "Tmin": 5.890491253897256,
+    "Tmean": 6.109884799267518,
+    "RH": 18.121766154446007,
+    "WindSpeed_ms": 1.8286599102927872,
+    "u_wind": 2.8503140915536926,
+    "v_wind": 3.0644273474343318,
+    "Press_hPa": 52.54246090919064,
+    "Solar_Jm2": 6804953.818418812,
+    "Precipitation_mm": 3.89542615915388,
+    "latitude": 2.686165775555351,
+    "longitude": 2.9570984215802665,
+    "elevation_m": 480.4849138776058,
+    "distance_to_ocean_km": 85.33988588660135,
+    "doy_sin": 0.7071084660794621,
+    "doy_cos": 0.7071083228789782
+  },
+  "tgt_mean": {
+    "HeatIndex": 25.0684232519959,
+    "WindChill": 13.036822170999306
+  },
+  "tgt_std": {
+    "HeatIndex": 8.541404585363349,
+    "WindChill": 7.105589537009016
+  },
+  "input_window": 7,
+  "output_window": 3,
+  "hidden": 128,
+  "n_layers": 2
+}
