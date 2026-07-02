@@ -9,20 +9,22 @@ grid (37×65 at 0.25°), stacks into a tensor [T, H, W, C] and writes both
 Matches the exact 13-channel format expected by the training pipeline
 (Copy_of_train_benchmark_models_v2.ipynb / ee_engine_asmaoui_.ipynb).
 
-Channel order (13 channels):
-    0  Tmax        — daily max 2m_temperature (K → °C)
-    1  Tmin        — daily min 2m_temperature (K → °C)
+Channel order (13 channels). The 11 INPUT channels are kept in the physical
+units of the model's normalization.npz (Kelvin / Pa / J·m⁻² …); the 2 TARGET
+channels are in °C:
+    0  Tmax        — daily max 2m_temperature (Kelvin)
+    1  Tmin        — daily min 2m_temperature (Kelvin)
     2  u_wind      — daily mean 10m_u (m/s)
     3  v_wind      — daily mean 10m_v (m/s)
-    4  Tdew        — daily mean 2m_dewpoint (K → °C)
-    5  SoilT       — daily mean soil_temperature_level_1 (K → °C)
+    4  Tdew        — daily mean 2m_dewpoint (Kelvin)
+    5  SoilT       — daily mean soil_temperature_level_1 (Kelvin)
     6  Solar       — daily total ssrd, last cumulated timestep (J/m²)
-    7  Press       — daily mean surface_pressure (Pa → hPa)
+    7  Press       — daily mean surface_pressure (Pa)
     8  SoilM       — daily mean volumetric_soil_water_layer_1 (m³/m³)
     9  WindSpeed   — sqrt(u²+v²), daily mean (m/s)
    10  RH          — Magnus formula from Tmean+Tdew, daily mean (%)
-   11  HeatIndex   — NOAA Rothfusz from Tmax + RH (°C)
-   12  WindChill   — from Tmin + WindSpeed (°C)
+   11  HeatIndex   — NOAA Rothfusz from Tmax + RH (°C)   [TARGET]
+   12  WindChill   — from Tmin + WindSpeed (°C)          [TARGET]
 
 Model targets (from training notebook):
     HeatIndex → channel 11,  WindChill → channel 12
@@ -30,15 +32,12 @@ Model targets (from training notebook):
 Usage:
     python era5land_processor.py --files data/raw/era5land/*.nc --end-date 2025-06-20
     python era5land_processor.py --start 2025-06-14 --end 2025-06-20  (auto-discover)
-    python era5land_processor.py --broker localhost:9092  (Kafka consumer mode)
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -46,7 +45,6 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import xarray as xr
-from confluent_kafka import Consumer
 
 CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
@@ -115,7 +113,7 @@ def _load_or_build_stats() -> Tuple[np.ndarray, np.ndarray]:
 
 
 # ---------------------------------------------------------------------------
-# Derived feature formulas — exact match with ee_engine_asmaoui_.ipynb cell 23
+# Derived feature formulas — 23
 # ---------------------------------------------------------------------------
 def _compute_wind_speed(u10: np.ndarray, v10: np.ndarray, valid_mask: np.ndarray) -> np.ndarray:
     ws = np.sqrt(u10 ** 2 + v10 ** 2)
@@ -231,56 +229,58 @@ def _compute_daily_aggregates(ds: xr.Dataset) -> np.ndarray:
     if t_steps < 24:
         logger.info("Only %d/24 hourly steps available — using what we have", t_steps)
 
-    # --- Daily aggregates of raw variables ---
-    tmax_k = t2m.max(axis=0)      # [lat, lon]
-    tmin_k = t2m.min(axis=0)
-    u_mean = u10.mean(axis=0)
-    v_mean = v10.mean(axis=0)
-    tdew_k = d2m.mean(axis=0)
-    soil_k = stl1_raw.mean(axis=0)
-    solar_sum = np.maximum(ssrd[-1, :, :], 0.0)
-    press_hpa = sp.mean(axis=0) / 100.0
-    soil_m = swvl1_raw.mean(axis=0)
+    # --- Daily aggregates of raw variables (native physical units) ---
+    tmax_k = t2m.max(axis=0)          # [lat, lon] Kelvin
+    tmin_k = t2m.min(axis=0)          # Kelvin
+    u_mean = u10.mean(axis=0)         # m/s
+    v_mean = v10.mean(axis=0)         # m/s
+    tdew_k = d2m.mean(axis=0)         # Kelvin
+    soil_k = stl1_raw.mean(axis=0)    # Kelvin
+    solar_sum = np.maximum(ssrd[-1, :, :], 0.0)  # J/m^2
+    press_pa = sp.mean(axis=0)        # Pa  (NOT hPa — see note below)
+    soil_m = swvl1_raw.mean(axis=0)   # m^3/m^3
 
-    # --- Convert K → °C where needed and build valid-pixel mask ---
+    # IMPORTANT: the model's normalization.npz statistics were computed in
+    # *physical units* (Kelvin for temps, Pa for pressure, J/m^2 for solar) over
+    # ocean-masked arrays (ocean = 0). The 11 INPUT channels must therefore be
+    # fed in those same units; only the two TARGET channels (HeatIndex/WindChill)
+    # are in °C. We keep Celsius copies solely to derive HI / WC / RH.
     tmax_c = tmax_k - 273.15
     tmin_c = tmin_k - 273.15
     tmean_c = (tmax_c + tmin_c) / 2.0
     tdew_c = tdew_k - 273.15
-    soil_c = soil_k - 273.15
 
+    # --- Valid-pixel (land) mask: zero out ocean to match the training stats ---
     valid = (tmax_k > 0.0)
-    tmax_c = np.where(valid, tmax_c, 0.0)
-    tmin_c = np.where(valid, tmin_c, 0.0)
-    tmean_c = np.where(valid, tmean_c, 0.0)
-    tdew_c = np.where(valid, tdew_c, 0.0)
-    soil_c = np.where(valid, soil_c, 0.0)
-    u_mean = np.where(valid, u_mean, 0.0)
-    v_mean = np.where(valid, v_mean, 0.0)
-    solar_sum = np.where(valid, solar_sum, 0.0)
-    press_hpa = np.where(valid, press_hpa, 0.0)
-    soil_m = np.where(valid, soil_m, 0.0)
+    mask = lambda a: np.where(valid, a, 0.0)  # noqa: E731
 
-    # --- Derived features (exact match with ee_engine notebook) ---
+    # INPUT channels — physical units, ocean-zeroed
+    tmax_k, tmin_k, tdew_k, soil_k = mask(tmax_k), mask(tmin_k), mask(tdew_k), mask(soil_k)
+    u_mean, v_mean = mask(u_mean), mask(v_mean)
+    solar_sum, press_pa, soil_m = mask(solar_sum), mask(press_pa), mask(soil_m)
+    # Celsius copies for the derived-feature formulas
+    tmax_c, tmin_c, tmean_c, tdew_c = mask(tmax_c), mask(tmin_c), mask(tmean_c), mask(tdew_c)
+
+    # --- Derived features (computed in °C, as in the training notebook) ---
     wind_speed = _compute_wind_speed(u_mean, v_mean, valid)
     rh = _compute_relative_humidity(tmean_c, tdew_c, valid)
     heat_index = _compute_heat_index(tmax_c, rh, valid)
     wind_chill = _compute_wind_chill(tmin_c, wind_speed, valid)
 
     channels = [
-        tmax_c,
-        tmin_c,
-        u_mean,
-        v_mean,
-        tdew_c,
-        soil_c,
-        solar_sum,
-        press_hpa,
-        soil_m,
-        wind_speed,
-        rh,
-        heat_index,
-        wind_chill,
+        tmax_k,      # 0  Tmax       (Kelvin)
+        tmin_k,      # 1  Tmin       (Kelvin)
+        u_mean,      # 2  u_wind     (m/s)
+        v_mean,      # 3  v_wind     (m/s)
+        tdew_k,      # 4  Tdew       (Kelvin)
+        soil_k,      # 5  SoilT      (Kelvin)
+        solar_sum,   # 6  Solar      (J/m^2)
+        press_pa,    # 7  Press      (Pa)
+        soil_m,      # 8  SoilM      (m^3/m^3)
+        wind_speed,  # 9  WindSpeed  (m/s)
+        rh,          # 10 RH         (%)
+        heat_index,  # 11 HeatIndex  (°C)  -- TARGET
+        wind_chill,  # 12 WindChill  (°C)  -- TARGET
     ]
 
     arr_native = np.stack(channels, axis=-1).astype(np.float32)  # [lat, lon, 13]
@@ -361,41 +361,6 @@ def build_tensor(files: List[str], end_date: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Kafka consumer
-# ---------------------------------------------------------------------------
-def run_kafka(broker: str, topic: str, once: bool = False) -> None:
-    consumer = Consumer({
-        "bootstrap.servers": broker,
-        "group.id": "era5land-processor",
-        "auto.offset.reset": "latest",
-    })
-    consumer.subscribe([topic])
-
-    try:
-        while True:
-            msg = consumer.poll(timeout=10)
-            if msg is None:
-                continue
-            if msg.error():
-                logger.error("Kafka error: %s", msg.error())
-                continue
-
-            payload = json.loads(msg.value().decode("utf-8"))
-            files = payload.get("files", [])
-            end_date = payload.get("end_date")
-            if not files or not end_date:
-                logger.error("Missing files or end_date in payload")
-                continue
-
-            build_tensor(files, end_date)
-
-            if once:
-                break
-    finally:
-        consumer.close()
-
-
-# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def _auto_discover_files(start: str, end: str) -> List[str]:
@@ -422,9 +387,6 @@ def _auto_discover_files(start: str, end: str) -> List[str]:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="ERA5-Land Tensor Builder (13 channels)")
-    parser.add_argument("--broker", default=os.getenv("KAFKA_BROKER", "localhost:9092"))
-    parser.add_argument("--topic", default=os.getenv("KAFKA_TOPIC_ERA5LAND", "era5land-raw-data"))
-    parser.add_argument("--once", action="store_true", help="Process one message then exit (Kafka mode)")
     parser.add_argument("--files", nargs="+", help="Explicit list of NetCDF files")
     parser.add_argument("--end-date", help="End date YYYY-MM-DD (required with --files)")
     parser.add_argument("--start", help="Start date YYYY-MM-DD (auto-discover mode)")
@@ -445,7 +407,7 @@ if __name__ == "__main__":
                 raise FileNotFoundError(f"No NetCDF files found for {args.start} -> {args.end}")
             build_tensor(files, args.end)
         else:
-            run_kafka(args.broker, args.topic, once=args.once)
+            raise SystemExit("Provide either --files + --end-date, or --start + --end")
     except Exception:
         logger.exception("Fatal error during ERA5-Land processing")
         sys.exit(1)

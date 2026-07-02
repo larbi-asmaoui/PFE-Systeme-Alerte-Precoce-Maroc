@@ -1,41 +1,9 @@
 version: "3.8"
 
 # ============================================================================
-#  SAP Morocco — Early Warning System
-#  Airflow -> Ingestion -> MinIO (DataLake) -> Spark -> PyTorch -> PostGIS/FastAPI -> Next.js
+#  SAP Morocco — Early Warning System (batch pipeline, no Airflow/Kafka)
+#  Ingestion (batch) -> MinIO (DataLake) -> Spark/Sedona -> PyTorch -> PostGIS/FastAPI -> Next.js
 # ============================================================================
-
-# Shared configuration for all Airflow services (anchored & reused below).
-x-airflow-common: &airflow-common
-  image: apache/airflow:2.9.3-python3.10
-  environment: &airflow-common-env
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
-    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
-    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
-    # Install the project's runtime deps into the Airflow workers on startup.
-    # (For production bake these into a custom image via a Dockerfile.)
-    _PIP_ADDITIONAL_REQUIREMENTS: "boto3 psycopg2-binary cdsapi xarray netCDF4 h5netcdf numpy"
-    # --- pipeline configuration consumed by producer.py / predictor.py ---
-    MINIO_ENDPOINT: http://minio:9000
-    MINIO_ACCESS_KEY: minioadmin
-    MINIO_SECRET_KEY: minioadmin
-    MINIO_BUCKET: sap-datalake
-    SERVING_DB_URL: postgresql://sap:sap@postgis:5432/sap_serving
-    INFERENCE_DEVICE: cpu
-  volumes:
-    - ./dags:/opt/airflow/dags
-    - ./ingestion:/opt/airflow/ingestion
-    - ./backend:/opt/airflow/backend
-    - ./data:/opt/airflow/data
-    - airflow_logs:/opt/airflow/logs
-  user: "50000:0"
-  networks:
-    - sap_network
-  depends_on:
-    airflow-postgres:
-      condition: service_healthy
 
 services:
   # ----------------------------------------------------
@@ -104,71 +72,6 @@ services:
       - sap_network
 
   # ----------------------------------------------------
-  # 4. ORCHESTRATION: Airflow (metadata DB + webserver + scheduler)
-  # ----------------------------------------------------
-  airflow-postgres:
-    image: postgres:15
-    container_name: sap_airflow_postgres
-    profiles: ["airflow"]
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
-    volumes:
-      - airflow_pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U airflow"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - sap_network
-
-  airflow-init:
-    <<: *airflow-common
-    container_name: sap_airflow_init
-    profiles: ["airflow"]
-    entrypoint: /bin/bash
-    command:
-      - -c
-      - |
-        airflow db migrate
-        airflow users create \
-          --username admin --password admin \
-          --firstname Admin --lastname User \
-          --role Admin --email admin@sap.local || true
-    restart: "no"
-
-  airflow-webserver:
-    <<: *airflow-common
-    container_name: sap_airflow_webserver
-    profiles: ["airflow"]
-    command: webserver
-    ports:
-      - "8080:8080"
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    depends_on:
-      airflow-postgres:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
-
-  airflow-scheduler:
-    <<: *airflow-common
-    container_name: sap_airflow_scheduler
-    profiles: ["airflow"]
-    command: scheduler
-    depends_on:
-      airflow-postgres:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
-
-  # ----------------------------------------------------
   # 5. FRONTEND: Next.js App
   # ----------------------------------------------------
   frontend:
@@ -217,30 +120,59 @@ services:
       - sap_network
 
   # ----------------------------------------------------
-  # 7. STREAMING: Spark Processor
+  # 7. BATCH RUNNER: runs run_pipeline.sh end-to-end
+  #    (jupyter/pyspark image = Java 11 + Spark + Python, the only image that
+  #     can host the Sedona step; run_pipeline.sh installs the rest of the deps)
+  #    On-demand only:  docker compose run --rm spark_processor bash run_pipeline.sh
   # ----------------------------------------------------
   spark_processor:
-    # We use a Jupyter PySpark image because it correctly pre-installs Java 11+, Python, and PySpark
     image: jupyter/pyspark-notebook:python-3.10
     container_name: sap_spark_processor
     user: root
-    working_dir: /app
+    working_dir: /workspace
+    profiles: ["jobs"]
     volumes:
-      - ./ingestion:/app
-      - ./data:/data
-      - ./backend/artifacts:/backend/artifacts
+      # Whole repo so the runner can reach ingestion_2/, backend/, public/, data/
+      - .:/workspace
     environment:
-      # Spark should upload tensor_live_*.npy to MinIO under tensors/ so the
-      # DAG sensor and predictor can pick it up from the DataLake.
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_BUCKET=sap-datalake
-    command: >
-      bash -c "pip install --no-cache-dir -r requirements.txt &&
-               python spark_processor.py"
+      - SERVING_DB_URL=postgresql://sap:sap@postgis:5432/sap_serving
+      - INFERENCE_DEVICE=cpu
+      # --- Apache Sedona (Spatial SQL) ---
+      # Pull the Sedona + GeoTools jars at submit time. NOTE: the artifact suffix
+      # must match the Spark/Scala build of the image (this jupyter/pyspark image
+      # ships Spark 3.x / Scala 2.12 -> sedona-spark-shaded-3.0_2.12). Bump the
+      # version if you change the base image.
+      - >-
+        PYSPARK_SUBMIT_ARGS=--packages
+        org.apache.sedona:sedona-spark-shaded-3.0_2.12:1.5.1,org.datasyslab:geotools-wrapper:1.5.0-28.2
+        pyspark-shell
+      # Morocco boundary used for the ocean mask (.shp or .geojson).
+      - MOROCCO_SHAPEFILE=/workspace/data/shapefiles/morocco/morocco.geojson
+    command: bash run_pipeline.sh
     depends_on:
       - minio
+      - postgis
+    networks:
+      - sap_network
+
+  # ----------------------------------------------------
+  # 7b. VECTOR TILES: pg_tileserv (serves .mvt from PostGIS)
+  # ----------------------------------------------------
+  pg_tileserv:
+    image: pramsey/pg_tileserv:latest
+    container_name: sap_pg_tileserv
+    environment:
+      # Reuse the same PostGIS serving database the predictor writes city_alerts to.
+      - DATABASE_URL=postgresql://sap:sap@postgis:5432/sap_serving
+    ports:
+      - "7800:7800"
+    depends_on:
+      postgis:
+        condition: service_healthy
     networks:
       - sap_network
 
@@ -311,8 +243,6 @@ services:
 volumes:
   minio_data:
   postgis_data:
-  airflow_pg_data:
-  airflow_logs:
 
 networks:
   sap_network:

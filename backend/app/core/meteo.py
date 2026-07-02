@@ -35,8 +35,21 @@ GRID_LONS = np.linspace(GRID_LON_WEST, GRID_LON_EAST, GRID_COLS)
 
 FORECAST_HORIZON = 7  # days
 
-# Target channel order produced by the model: [tmax, tmin, rh]
-CH_TMAX, CH_TMIN, CH_RH = 0, 1, 2
+# Target channel order produced by the new 13-channel model: [heat_index, wind_chill]
+CH_HEAT_INDEX = 0
+CH_WIND_CHILL = 1
+
+# Indices of those two targets inside the 13-channel normalization stats, whose
+# order follows the *input* channels (see ingestion_2/era5land_processor.py):
+# HeatIndex is input channel 11, WindChill is input channel 12.
+STAT_HEAT_INDEX_IDX = 11
+STAT_WIND_CHILL_IDX = 12
+
+# Fixed alert baselines (no climatology): severity is the number of degrees a
+# felt-temperature pushes into the alert zone, derived solely from the predicted
+# Heat Index / Wind Chill. Tunable.
+HEAT_INDEX_ALERT_BASELINE_C = 32.0   # NOAA Heat Index "extreme caution" onset
+WIND_CHILL_ALERT_BASELINE_C = 5.0    # cold-stress onset
 
 # ---------------------------------------------------------------------------
 # Major Moroccan cities (lat, lon in decimal degrees)
@@ -86,45 +99,19 @@ def nearest_grid_index(lat: float, lon: float) -> tuple[int, int]:
 
 
 # ---------------------------------------------------------------------------
-# NOAA Rothfusz Heat Index
+# Felt-temperature severity (model predicts Heat Index / Wind Chill directly)
 # ---------------------------------------------------------------------------
-def noaa_heat_index(t_celsius: float, rh_percent: float) -> float:
+def felt_severity(heat_index: float, wind_chill: float) -> float:
     """
-    NOAA Rothfusz regression for the Heat Index.
+    Severity derived solely from the two predicted felt-temperatures.
 
-    Converts Celsius to Fahrenheit, computes HI in deg F, then back to deg C.
-    Below 26.7 deg C the regression is not valid, so the dry temperature is
-    returned unchanged.
-
-    Reference: https://www.weather.gov/media/epz/wxcalc/heatIndex.pdf
+    Heat stress grows as the Heat Index rises above its alert baseline; cold
+    stress grows as the Wind Chill drops below its baseline. The worst of the
+    two is returned, in degrees Celsius into the alert zone.
     """
-    if t_celsius < 26.7:
-        return t_celsius
-
-    t_f = t_celsius * 9.0 / 5.0 + 32.0
-    rh = rh_percent
-
-    hi_f = (
-        -42.379
-        + 2.04901523 * t_f
-        + 10.14333127 * rh
-        - 0.22475541 * t_f * rh
-        - 6.83783e-3 * t_f**2
-        - 5.481717e-2 * rh**2
-        + 1.22874e-3 * t_f**2 * rh
-        + 8.5282e-4 * t_f * rh**2
-        - 1.99e-6 * t_f**2 * rh**2
-    )
-
-    if rh < 13.0 and 80.0 <= t_f <= 112.0:
-        adjustment = ((13.0 - rh) / 4.0) * ((17.0 - abs(t_f - 95.0)) / 17.0) ** 0.5
-        hi_f -= adjustment
-    elif rh > 85.0 and 80.0 <= t_f <= 87.0:
-        adjustment = ((rh - 85.0) / 10.0) * ((87.0 - t_f) / 5.0)
-        hi_f += adjustment
-
-    hi_c = (hi_f - 32.0) * 5.0 / 9.0
-    return max(t_celsius, hi_c)
+    heat = heat_index - HEAT_INDEX_ALERT_BASELINE_C
+    cold = WIND_CHILL_ALERT_BASELINE_C - wind_chill
+    return max(heat, cold)
 
 
 # ---------------------------------------------------------------------------
