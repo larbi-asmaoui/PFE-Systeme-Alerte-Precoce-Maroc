@@ -1,0 +1,210 @@
+[
+ {
+  "code": "ANF",
+  "station_id": "60155099999",
+  "name": "Anfa",
+  "lat": 33.55698,
+  "lon": -7.66049,
+  "elevation": 61.87
+ },
+ {
+  "code": "ANG",
+  "station_id": "60115099999",
+  "name": "Angads",
+  "lat": 34.78715,
+  "lon": -1.92399,
+  "elevation": 467.86
+ },
+ {
+  "code": "BAS",
+  "station_id": "60150099999",
+  "name": "Bassatine",
+  "lat": 33.87907,
+  "lon": -5.51513,
+  "elevation": 576.07
+ },
+ {
+  "code": "CHE_CHEFCHAOUEN",
+  "station_id": "60106099999",
+  "name": "Chefchaouen",
+  "lat": 35.16667,
+  "lon": -5.3,
+  "elevation": 305.0
+ },
+ {
+  "code": "CHE_MOULAY",
+  "station_id": "60210099999",
+  "name": "Moulay Ali Cherif",
+  "lat": 31.9475,
+  "lon": -4.39833,
+  "elevation": 1044.85
+ },
+ {
+  "code": "CIS",
+  "station_id": "60096099999",
+  "name": "Villa Cisneros Mil",
+  "lat": 23.7,
+  "lon": -15.86667,
+  "elevation": 10.0
+ },
+ {
+  "code": "DAK",
+  "station_id": "60034099999",
+  "name": "Dakhla",
+  "lat": 23.71829,
+  "lon": -15.93199,
+  "elevation": 6.09
+ },
+ {
+  "code": "ESS",
+  "station_id": "60220099999",
+  "name": "Essaouira",
+  "lat": 31.39918,
+  "lon": -9.68299,
+  "elevation": 128.02
+ },
+ {
+  "code": "GUE",
+  "station_id": "60280099999",
+  "name": "Guelmin",
+  "lat": 29.01667,
+  "lon": -10.06667,
+  "elevation": 341.0
+ },
+ {
+  "code": "HAS1",
+  "station_id": "60033099999",
+  "name": "Hassan I",
+  "lat": 27.15167,
+  "lon": -13.21917,
+  "elevation": 63.09
+ },
+ {
+  "code": "IDR",
+  "station_id": "60107099999",
+  "name": "Cherif El Idrissi",
+  "lat": 35.1771,
+  "lon": -3.83953,
+  "elevation": 27.12
+ },
+ {
+  "code": "IFN",
+  "station_id": "60060099999",
+  "name": "Sidi Ifni",
+  "lat": 29.36898,
+  "lon": -10.18027,
+  "elevation": 59.0
+ },
+ {
+  "code": "LAR",
+  "station_id": "60105099999",
+  "name": "Larache",
+  "lat": 35.15,
+  "lon": -6.1,
+  "elevation": 49.0
+ },
+ {
+  "code": "MAS",
+  "station_id": "60252099999",
+  "name": "Al Massira",
+  "lat": 30.325,
+  "lon": -9.41307,
+  "elevation": 76.2
+ },
+ {
+  "code": "MEL",
+  "station_id": "60191099999",
+  "name": "Beni Mellal",
+  "lat": 32.36667,
+  "lon": -6.4,
+  "elevation": 472.0
+ },
+ {
+  "code": "MEN",
+  "station_id": "60230099999",
+  "name": "Menara",
+  "lat": 31.60689,
+  "lon": -8.0363,
+  "elevation": 467.86
+ },
+ {
+  "code": "MID",
+  "station_id": "60195099999",
+  "name": "Midelt",
+  "lat": 32.68333,
+  "lon": -4.73333,
+  "elevation": 1515.0
+ },
+ {
+  "code": "MOH5",
+  "station_id": "60156099999",
+  "name": "Mohammed V",
+  "lat": 33.36747,
+  "lon": -7.58997,
+  "elevation": 199.94
+ },
+ {
+  "code": "NAD",
+  "station_id": "60340099999",
+  "name": "Nador Aroui",
+  "lat": 34.98333,
+  "lon": -3.01667,
+  "elevation": 177.0
+ },
+ {
+  "code": "OUA",
+  "station_id": "60265099999",
+  "name": "Ouarzazate",
+  "lat": 30.93905,
+  "lon": -6.90943,
+  "elevation": 1153.05
+ },
+ {
+  "code": "PBL",
+  "station_id": "60285099999",
+  "name": "Plage Blanche",
+  "lat": 28.44819,
+  "lon": -11.16135,
+  "elevation": 199.03
+ },
+ {
+  "code": "RME",
+  "station_id": "60318099999",
+  "name": "Saniat Rmel",
+  "lat": 35.59433,
+  "lon": -5.32002,
+  "elevation": 3.04
+ },
+ {
+  "code": "SAF",
+  "station_id": "60185099999",
+  "name": "Safi",
+  "lat": 32.28333,
+  "lon": -9.23333,
+  "elevation": 45.0
+ },
+ {
+  "code": "SAI",
+  "station_id": "60141099999",
+  "name": "Saiss",
+  "lat": 33.92726,
+  "lon": -4.97796,
+  "elevation": 579.12
+ },
+ {
+  "code": "SLE",
+  "station_id": "60135099999",
+  "name": "Sale",
+  "lat": 34.05147,
+  "lon": -6.75152,
+  "elevation": 84.12
+ },
+ {
+  "code": "TAZ",
+  "station_id": "60127099999",
+  "name": "Taza",
+  "lat": 34.21667,
+  "lon": -4.0,
+  "elevation": 510.0
+ }
+]

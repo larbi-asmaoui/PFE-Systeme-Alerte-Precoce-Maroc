@@ -135,8 +135,7 @@
 
 import {
   IconDashboard,
-  IconAlertTriangle,
-  IconChartBar,
+  IconMapPin,
   IconUsers,
   IconSettings,
 } from "@tabler/icons-react";
@@ -170,19 +169,11 @@ const dashboard: MenuItem = {
       breadcrumbs: false,
     },
     {
-      id: "alerts",
-      title: "Gestion des Alertes",
+      id: "stations",
+      title: "Historique Stations",
       type: "item",
-      url: "/alerts",
-      icon: IconAlertTriangle,
-      breadcrumbs: false,
-    },
-    {
-      id: "analytics",
-      title: "Historique & Statistiques",
-      type: "item",
-      url: "/analytics",
-      icon: IconChartBar,
+      url: "/stations",
+      icon: IconMapPin,
       breadcrumbs: false,
     },
   ],

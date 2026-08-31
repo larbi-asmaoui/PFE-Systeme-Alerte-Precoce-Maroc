@@ -49,6 +49,10 @@ const DrawerStyled = styled(Drawer, {
   }),
 }));
 
+// Sidebar surface — a soft cool-grey gradient so the nav reads as its own panel
+// (distinct from the white content area) without hurting menu-text contrast.
+const SIDEBAR_BG = "linear-gradient(180deg, #f6f8fc 0%, #eaeef7 100%)";
+
 interface SidebarProps {
   open: boolean;
   handleDrawerToggle: () => void;
@@ -90,14 +94,14 @@ function Sidebar({ open, handleDrawerToggle }: SidebarProps) {
           typeof window !== "undefined" ? window.document.body : undefined
         }
         variant="temporary"
-        open={open}
+        open={!matchUpMd && open}
         onClose={handleDrawerToggle}
-        ModalProps={{ keepMounted: true }}
+        ModalProps={{ keepMounted: true, disableScrollLock: true }}
         sx={{
           display: { xs: "block", md: "none" },
           "& .MuiDrawer-paper": {
             width: drawerWidth,
-            background: theme.palette.background.paper,
+            background: SIDEBAR_BG,
             color: theme.palette.text.primary,
             borderRight: "none",
           },
@@ -111,9 +115,10 @@ function Sidebar({ open, handleDrawerToggle }: SidebarProps) {
         sx={{
           display: { xs: "none", md: "block" },
           "& .MuiDrawer-paper": {
-            background: theme.palette.background.paper,
+            background: SIDEBAR_BG,
             color: theme.palette.text.primary,
-            borderRight: "none",
+            borderRight: "1px solid",
+            borderColor: "divider",
             top: "88px",
           },
         }}

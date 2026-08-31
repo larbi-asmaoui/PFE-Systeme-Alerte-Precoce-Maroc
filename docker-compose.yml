@@ -1,0 +1,249 @@
+version: "3.8"
+
+# ============================================================================
+#  SAP Morocco — Early Warning System (batch pipeline, no Airflow/Kafka)
+#  Ingestion (batch) -> MinIO (DataLake) -> Spark/Sedona -> PyTorch -> PostGIS/FastAPI -> Next.js
+# ============================================================================
+
+services:
+  # ----------------------------------------------------
+  # 2. DATALAKE: MinIO + one-shot bucket creation
+  # ----------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: sap_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Web console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sap_network
+
+  # Creates the default 'sap-datalake' bucket + the canonical prefixes, then exits.
+  minio-init:
+    image: minio/mc:latest
+    container_name: sap_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/sap-datalake &&
+      mc cp /dev/null local/sap-datalake/raw/.keep &&
+      mc cp /dev/null local/sap-datalake/tensors/.keep &&
+      mc cp /dev/null local/sap-datalake/reference/.keep &&
+      mc cp /dev/null local/sap-datalake/predictions/.keep &&
+      echo 'Bucket sap-datalake ready.';
+      "
+    networks:
+      - sap_network
+
+  # ----------------------------------------------------
+  # 3. SERVING DB: PostgreSQL + PostGIS (for FastAPI)
+  # ----------------------------------------------------
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: sap_postgis
+    environment:
+      POSTGRES_USER: sap
+      POSTGRES_PASSWORD: sap
+      POSTGRES_DB: sap_serving
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sap -d sap_serving"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sap_network
+
+  # ----------------------------------------------------
+  # 5. FRONTEND: Next.js App
+  # ----------------------------------------------------
+  frontend:
+    image: node:20-alpine
+    container_name: sap_frontend
+    working_dir: /app
+    volumes:
+      - .:/app
+      - /app/node_modules # Prevents local node_modules from overriding container's
+    ports:
+      - "3000:3000"
+    command: >
+      sh -c "npm install && npm run dev"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+    networks:
+      - sap_network
+
+  # ----------------------------------------------------
+  # 6. BACKEND: FastAPI App
+  # ----------------------------------------------------
+  backend:
+    image: python:3.10-slim
+    container_name: sap_backend
+    working_dir: /app
+    volumes:
+      # Mount backend, project data, and public map JSONs
+      - ./backend:/app
+      - ./data:/data
+      - ./public:/public
+    ports:
+      - "8000:8000"
+    environment:
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=sap-datalake
+      - SERVING_DB_URL=postgresql://sap:sap@postgis:5432/sap_serving
+    depends_on:
+      - minio
+      - postgis
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    networks:
+      - sap_network
+
+  # ----------------------------------------------------
+  # 7. BATCH RUNNER: runs run_pipeline.sh end-to-end
+  #    (jupyter/pyspark image = Java 11 + Spark + Python, the only image that
+  #     can host the Sedona step; run_pipeline.sh installs the rest of the deps)
+  #    On-demand only:  docker compose run --rm spark_processor bash run_pipeline.sh
+  # ----------------------------------------------------
+  spark_processor:
+    image: jupyter/pyspark-notebook:python-3.10
+    container_name: sap_spark_processor
+    user: root
+    working_dir: /workspace
+    profiles: ["jobs"]
+    volumes:
+      # Whole repo so the runner can reach ingestion_2/, backend/, public/, data/
+      - .:/workspace
+    environment:
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=sap-datalake
+      - SERVING_DB_URL=postgresql://sap:sap@postgis:5432/sap_serving
+      - INFERENCE_DEVICE=cpu
+      # --- Apache Sedona (Spatial SQL) ---
+      # Pull the Sedona + GeoTools jars at submit time. NOTE: the artifact suffix
+      # must match the Spark/Scala build of the image (this jupyter/pyspark image
+      # ships Spark 3.x / Scala 2.12 -> sedona-spark-shaded-3.0_2.12). Bump the
+      # version if you change the base image.
+      - >-
+        PYSPARK_SUBMIT_ARGS=--packages
+        org.apache.sedona:sedona-spark-shaded-3.0_2.12:1.5.1,org.datasyslab:geotools-wrapper:1.5.0-28.2
+        pyspark-shell
+      # Morocco boundary used for the ocean mask (.shp or .geojson).
+      - MOROCCO_SHAPEFILE=/workspace/data/shapefiles/morocco/morocco.geojson
+    command: bash run_pipeline.sh
+    depends_on:
+      - minio
+      - postgis
+    networks:
+      - sap_network
+
+  # ----------------------------------------------------
+  # 7b. VECTOR TILES: pg_tileserv (serves .mvt from PostGIS)
+  # ----------------------------------------------------
+  pg_tileserv:
+    image: pramsey/pg_tileserv:latest
+    container_name: sap_pg_tileserv
+    environment:
+      # Reuse the same PostGIS serving database the predictor writes city_alerts to.
+      - DATABASE_URL=postgresql://sap:sap@postgis:5432/sap_serving
+    ports:
+      - "7800:7800"
+    depends_on:
+      postgis:
+        condition: service_healthy
+    networks:
+      - sap_network
+
+  # ----------------------------------------------------
+  # 8. JOBS: GFS Producer & Processor
+  # Run them on-demand: docker-compose run --rm gfs_producer (or gfs_processor)
+  # ----------------------------------------------------
+  gfs_producer:
+    image: python:3.10-slim
+    container_name: sap_gfs_producer
+    working_dir: /app
+    volumes:
+      - ./ingestion:/app
+      - ./data:/data
+    environment:
+      - GFS_SOURCE=auto
+    profiles:
+      - jobs
+    command: >
+      sh -c "pip install --no-cache-dir requests confluent-kafka &&
+             python gfs_producer.py --no-kafka"
+    networks:
+      - sap_network
+
+  gfs_processor:
+    image: python:3.10-slim
+    container_name: sap_gfs_processor
+    working_dir: /app
+    volumes:
+      - ./ingestion:/app
+      - ./data:/data
+      - ./backend/artifacts:/backend/artifacts
+    profiles:
+      - jobs
+    command: >
+      sh -c "apt-get update && apt-get install -y libeccodes0 &&
+             pip install --no-cache-dir numpy xarray cfgrib eccodes confluent-kafka &&
+             python gfs_processor_runner.py"
+    networks:
+      - sap_network
+
+  predictor:
+    image: python:3.10-slim
+    container_name: sap_predictor
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+      - ./public:/public
+    environment:
+      - INFERENCE_DEVICE=cpu
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=sap-datalake
+      - SERVING_DB_URL=postgresql://sap:sap@postgis:5432/sap_serving
+    profiles:
+      - jobs
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt &&
+             python predictor.py"
+    networks:
+      - sap_network
+
+# ============================================================================
+#  Named volumes & shared network
+# ============================================================================
+volumes:
+  minio_data:
+  postgis_data:
+
+networks:
+  sap_network:
+    driver: bridge

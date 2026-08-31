@@ -1,0 +1,17 @@
+# ingestion (producers + processor)
+requests
+pandas
+numpy
+xarray
+netCDF4
+pyarrow
+confluent-kafka
+# Stage 1 — station nowcast (TensorFlow inference)
+tensorflow
+scikit-learn
+joblib
+# Stage 2 — Spark + Sedona spatialization
+pyspark==3.5.5
+apache-sedona
+shapely
+h3

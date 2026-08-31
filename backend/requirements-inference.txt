@@ -1,0 +1,13 @@
+# Extra deps for the OFFLINE station forecaster (backend/predict_stations.py).
+# Kept out of requirements.txt so the FastAPI API image stays TensorFlow-free.
+#
+#   pip install -r backend/requirements-inference.txt
+#   python backend/predict_stations.py
+#
+# NOTE: the GRU.keras artifact was saved with a recent Keras 3 (it carries a
+# `quantization_config` field), so Keras < 3.12 fails to load it.
+tensorflow==2.18.1
+keras>=3.12,<4
+joblib>=1.3.0
+pandas>=2.0.0
+numpy>=1.26.0,<2.1.0

@@ -9,3 +9,14 @@ bcrypt==4.0.1
 python-multipart==0.0.12
 alembic==1.13.3
 aiosqlite==0.20.0
+
+# ---- ML inference & alerting ----
+torch>=2.1.0
+numpy>=1.24.0
+xarray>=2023.0.0
+netCDF4>=1.6.0
+h5netcdf>=1.2.0
+
+# ---- DataLake (MinIO/S3) & serving DB (PostGIS) ----
+boto3>=1.34.0
+psycopg2-binary>=2.9.9
