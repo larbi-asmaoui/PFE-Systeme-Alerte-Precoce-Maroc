@@ -33,13 +33,41 @@ import WhatshotIcon from "@mui/icons-material/Whatshot";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PauseIcon from "@mui/icons-material/Pause";
 
-import type { GeoJSONData, GridCellProperties, ForecastDay, MapMetric } from "@/components/map/HeatMap";
-import { HEAT_CLASSES, COLD_CLASSES, heatIndexClass, windChillClass } from "@/components/map/HeatMap";
+import type {
+  GeoJSONData,
+  GridCellProperties,
+  ForecastDay,
+  MapMetric,
+  MapSource,
+} from "@/components/map/HeatMap";
+import {
+  HEAT_CLASSES,
+  COLD_CLASSES,
+  heatIndexClass,
+  windChillClass,
+} from "@/components/map/HeatMap";
+
+// Data source → static GeoJSON produced by each pipeline.
+const SOURCE_FILES: Record<MapSource, string> = {
+  stations: "/data/stations_forecast.geojson", // Pipeline A — GSOD stations (Open-Meteo + GRU)
+  grid: "/data/today_alerts.geojson", // Pipeline B — ERA5-Land national surface
+};
+
+// In-memory cache of the (already-expanded) GeoJSON per source, so flipping the
+// source toggle is instant instead of re-fetching + re-parsing the 9 MB grid.
+const GEOJSON_CACHE = new Map<MapSource, GeoJSONData>();
 
 const DynamicHeatMap = dynamic(() => import("@/components/map/HeatMap"), {
   ssr: false,
   loading: () => (
-    <Box sx={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center" }}>
+    <Box
+      sx={{
+        display: "flex",
+        height: "100%",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       <CircularProgress color="primary" />
     </Box>
   ),
@@ -49,29 +77,29 @@ const DynamicHeatMap = dynamic(() => import("@/components/map/HeatMap"), {
 // Constants
 // ---------------------------------------------------------------------------
 const MOROCCO_CITIES: Array<{ name: string; lat: number; lon: number }> = [
-  { name: "Casablanca",  lat: 33.5731, lon: -7.5898 },
-  { name: "Rabat",       lat: 34.0209, lon: -6.8416 },
-  { name: "Marrakech",   lat: 31.6295, lon: -7.9811 },
-  { name: "Agadir",      lat: 30.4278, lon: -9.5981 },
-  { name: "Taroudant",   lat: 30.4728, lon: -8.8732 },
-  { name: "Fès",         lat: 34.0331, lon: -5.0003 },
-  { name: "Tanger",      lat: 35.7595, lon: -5.8340 },
-  { name: "Meknès",      lat: 33.8920, lon: -5.5510 },
-  { name: "Oujda",       lat: 34.6814, lon: -1.9086 },
-  { name: "Kénitra",     lat: 34.2610, lon: -6.5802 },
-  { name: "Tétouan",     lat: 35.5889, lon: -5.3626 },
-  { name: "Safi",        lat: 32.2994, lon: -9.2372 },
-  { name: "Mohammédia",  lat: 33.3093, lon: -8.4552 },
+  { name: "Casablanca", lat: 33.5731, lon: -7.5898 },
+  { name: "Rabat", lat: 34.0209, lon: -6.8416 },
+  { name: "Marrakech", lat: 31.6295, lon: -7.9811 },
+  { name: "Agadir", lat: 30.4278, lon: -9.5981 },
+  { name: "Taroudant", lat: 30.4728, lon: -8.8732 },
+  { name: "Fès", lat: 34.0331, lon: -5.0003 },
+  { name: "Tanger", lat: 35.7595, lon: -5.834 },
+  { name: "Meknès", lat: 33.892, lon: -5.551 },
+  { name: "Oujda", lat: 34.6814, lon: -1.9086 },
+  { name: "Kénitra", lat: 34.261, lon: -6.5802 },
+  { name: "Tétouan", lat: 35.5889, lon: -5.3626 },
+  { name: "Safi", lat: 32.2994, lon: -9.2372 },
+  { name: "Mohammédia", lat: 33.3093, lon: -8.4552 },
   { name: "Béni Mellal", lat: 32.3373, lon: -6.3498 },
-  { name: "Nador",       lat: 35.1667, lon: -2.9333 },
-  { name: "Taza",        lat: 34.2155, lon: -4.0120 },
-  { name: "Settat",      lat: 33.0010, lon: -7.6166 },
-  { name: "Khouribga",   lat: 32.8811, lon: -6.9063 },
-  { name: "Errachidia",  lat: 31.9314, lon: -4.4244 },
-  { name: "Laâyoune",    lat: 27.1525, lon: -13.2003 },
-  { name: "Al Hoceïma",  lat: 35.2442, lon: -3.9317 },
-  { name: "Essaouira",   lat: 31.5125, lon: -9.7700 },
-  { name: "Guelmim",     lat: 28.9884, lon: -10.0633 },
+  { name: "Nador", lat: 35.1667, lon: -2.9333 },
+  { name: "Taza", lat: 34.2155, lon: -4.012 },
+  { name: "Settat", lat: 33.001, lon: -7.6166 },
+  { name: "Khouribga", lat: 32.8811, lon: -6.9063 },
+  { name: "Errachidia", lat: 31.9314, lon: -4.4244 },
+  { name: "Laâyoune", lat: 27.1525, lon: -13.2003 },
+  { name: "Al Hoceïma", lat: 35.2442, lon: -3.9317 },
+  { name: "Essaouira", lat: 31.5125, lon: -9.77 },
+  { name: "Guelmim", lat: 28.9884, lon: -10.0633 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -102,15 +130,26 @@ function nearestCell(
 export default function Dashboard() {
   const [geojson, setGeojson] = useState<GeoJSONData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [source, setSource] = useState<MapSource>("stations");
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
   const [metric, setMetric] = useState<MapMetric>("heat");
   const [atRiskOnly, setAtRiskOnly] = useState<boolean>(false);
   const [expandedRegion, setExpandedRegion] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
-  // ---- Load GeoJSON ----
+  // ---- Load GeoJSON for the active source (stations vs national grid) ----
   useEffect(() => {
-    fetch("/data/today_alerts.geojson")
+    // Instant path: already fetched + expanded this source once this session.
+    const cached = GEOJSON_CACHE.get(source);
+    if (cached) {
+      setGeojson(cached);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    fetch(SOURCE_FILES[source])
       .then((res) => res.json())
       .then((data: GeoJSONData) => {
         // Expand Stage 2's compact per-day arrays (hi/wc/sev/lvl + top-level
@@ -129,14 +168,20 @@ export default function Dashboard() {
             }));
           }
         }
+        GEOJSON_CACHE.set(source, data);
+        if (cancelled) return;
         setGeojson(data);
         setLoading(false);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error("Error loading geojson:", err);
         setLoading(false);
       });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [source]);
 
   // ---- City display data from grid cells ----
   interface CityDisplay {
@@ -150,23 +195,51 @@ export default function Dashboard() {
     date: string;
   }
 
-  const cityRegions: CityDisplay[] = useMemo(() => {
+  const pickForecast = useCallback(
+    (props: GridCellProperties | null): ForecastDay | null => {
+      if (!props?.forecasts?.length) return null;
+      return (
+        props.forecasts[selectedDayIndex] ??
+        props.forecasts[props.forecasts.length - 1]
+      );
+    },
+    [selectedDayIndex],
+  );
+
+  // Resolve each sidebar row to its underlying feature ONCE per dataset. For the
+  // grid this runs the O(cities × cells) nearest-cell search a single time, not
+  // on every slider tick — the day only re-picks a forecast from these props.
+  const regionSources: Array<{
+    id: number;
+    name: string;
+    props: GridCellProperties;
+  }> = useMemo(() => {
     if (!geojson) return [];
-
+    if (source === "stations") {
+      return geojson.features.map((f, index) => ({
+        id: index,
+        name: f.properties.station_name || `Station ${index + 1}`,
+        props: f.properties,
+      }));
+    }
     return MOROCCO_CITIES.map((city, index) => {
-      const cell = nearestCell(geojson.features, city.lat, city.lon);
-
-      let forecast: ForecastDay | null = null;
-      if (cell && cell.forecasts[selectedDayIndex]) {
-        forecast = cell.forecasts[selectedDayIndex];
-      } else if (cell && cell.forecasts.length > 0) {
-        forecast = cell.forecasts[cell.forecasts.length - 1];
-      }
-
+      const props = nearestCell(geojson.features, city.lat, city.lon);
       return {
         id: index,
         name: city.name,
-        coords: [city.lat, city.lon] as [number, number],
+        props:
+          props ?? ({ lat: city.lat, lon: city.lon } as GridCellProperties),
+      };
+    });
+  }, [geojson, source]);
+
+  const cityRegions: CityDisplay[] = useMemo(() => {
+    return regionSources.map(({ id, name, props }) => {
+      const forecast = pickForecast(props);
+      return {
+        id,
+        name,
+        coords: [props.lat, props.lon] as [number, number],
         alert: forecast?.alert_level || "none",
         heat_index: forecast?.heat_index ?? 0,
         wind_chill: forecast?.wind_chill ?? 0,
@@ -174,7 +247,7 @@ export default function Dashboard() {
         date: forecast?.date ?? "",
       };
     });
-  }, [geojson, selectedDayIndex]);
+  }, [regionSources, pickForecast]);
 
   // ---- Metric-aware helpers (active metric drives value / class / risk) ----
   const cityValue = useCallback(
@@ -182,12 +255,16 @@ export default function Dashboard() {
     [metric],
   );
   const cityBand = useCallback(
-    (r: CityDisplay) => (metric === "cold" ? windChillClass(r.wind_chill) : heatIndexClass(r.heat_index)),
+    (r: CityDisplay) =>
+      metric === "cold"
+        ? windChillClass(r.wind_chill)
+        : heatIndexClass(r.heat_index),
     [metric],
   );
   // "At risk" = beyond the comfortable/low-risk class for the active metric.
   const cityAtRisk = useCallback(
-    (r: CityDisplay) => (metric === "cold" ? r.wind_chill < 0 : r.heat_index >= 27),
+    (r: CityDisplay) =>
+      metric === "cold" ? r.wind_chill < 0 : r.heat_index >= 27,
     [metric],
   );
 
@@ -195,7 +272,9 @@ export default function Dashboard() {
   const displayRegions: CityDisplay[] = useMemo(() => {
     const list = atRiskOnly ? cityRegions.filter(cityAtRisk) : [...cityRegions];
     return list.sort((a, b) =>
-      metric === "cold" ? cityValue(a) - cityValue(b) : cityValue(b) - cityValue(a),
+      metric === "cold"
+        ? cityValue(a) - cityValue(b)
+        : cityValue(b) - cityValue(a),
     );
   }, [cityRegions, atRiskOnly, metric, cityAtRisk, cityValue]);
 
@@ -205,7 +284,11 @@ export default function Dashboard() {
     const first = geojson.features[0].properties;
     return first.forecasts.map((f) => {
       const d = new Date(f.date + "T12:00:00Z");
-      return d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+      return d.toLocaleDateString("fr-FR", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
     });
   }, [geojson]);
 
@@ -231,7 +314,8 @@ export default function Dashboard() {
   // ---- /alerts/point API call on map click ----
   const handleCellClick = useCallback(async (lat: number, lon: number) => {
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+      const apiBase =
+        process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
       const res = await fetch(`${apiBase}/alerts/point?lat=${lat}&lon=${lon}`);
       if (res.ok) {
         const data = await res.json();
@@ -246,15 +330,48 @@ export default function Dashboard() {
   const riskSummary = useMemo(() => {
     const classes = metric === "heat" ? HEAT_CLASSES : COLD_CLASSES;
     const counts = new Map<string, number>();
-    for (const r of cityRegions) counts.set(cityBand(r).label, (counts.get(cityBand(r).label) ?? 0) + 1);
+    for (const r of cityRegions)
+      counts.set(cityBand(r).label, (counts.get(cityBand(r).label) ?? 0) + 1);
     // drop the lowest/safe tier (last entry of each class list) from the chips
-    return classes.slice(0, -1).map((c) => ({ ...c, count: counts.get(c.label) ?? 0 }));
+    return classes
+      .slice(0, -1)
+      .map((c) => ({ ...c, count: counts.get(c.label) ?? 0 }));
   }, [cityRegions, metric, cityBand]);
 
   const atRiskCount = useMemo(
     () => cityRegions.filter(cityAtRisk).length,
     [cityRegions, cityAtRisk],
   );
+
+  // ---- KPI strip: headline numbers for the selected day + active metric ----
+  const kpis = useMemo(() => {
+    const total = cityRegions.length;
+    if (total === 0) {
+      return { total, atRisk: 0, peakLabel: "—", peakName: "—", riskPct: 0 };
+    }
+    // "Peak" = hottest (heat) or coldest (cold) entity of the day.
+    const peak = cityRegions.reduce((acc, r) =>
+      metric === "cold"
+        ? r.wind_chill < acc.wind_chill
+          ? r
+          : acc
+        : r.heat_index > acc.heat_index
+          ? r
+          : acc,
+    );
+    const peakVal = metric === "cold" ? peak.wind_chill : peak.heat_index;
+    return {
+      total,
+      atRisk: atRiskCount,
+      peakLabel: `${Math.round(peakVal)}°C`,
+      peakName: peak.name,
+      riskPct: Math.round((atRiskCount / total) * 100),
+    };
+  }, [cityRegions, metric, atRiskCount]);
+
+  // Sidebar wording adapts to the active source.
+  const entityLabel = source === "stations" ? "STATIONS" : "VILLES";
+  const entityNoun = source === "stations" ? "station" : "ville";
 
   return (
     <Box
@@ -276,8 +393,43 @@ export default function Dashboard() {
           geojson={geojson}
           selectedDay={selectedDayIndex}
           metric={metric}
+          sourceType={source}
           onCellClick={handleCellClick}
         />
+
+        {/* SOURCE TOGGLE — Stations (points) vs National surface (ERA5-Land grid) */}
+        <Paper
+          elevation={3}
+          sx={{
+            position: "absolute",
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1000,
+            borderRadius: 2,
+            overflow: "hidden",
+          }}
+        >
+          <ToggleButtonGroup
+            value={source}
+            exclusive
+            size="small"
+            onChange={(_e, val) => val && setSource(val as MapSource)}
+          >
+            <ToggleButton
+              value="stations"
+              sx={{ textTransform: "none", px: 1.5, gap: 0.5 }}
+            >
+              Stations
+            </ToggleButton>
+            <ToggleButton
+              value="grid"
+              sx={{ textTransform: "none", px: 1.5, gap: 0.5 }}
+            >
+              National (ERA5-Land)
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Paper>
 
         {/* METRIC TOGGLE — Heat Index vs Wind Chill */}
         <Paper
@@ -297,13 +449,19 @@ export default function Dashboard() {
             size="small"
             onChange={(_e, val) => val && setMetric(val as MapMetric)}
           >
-            <ToggleButton value="heat" sx={{ textTransform: "none", px: 1.5, gap: 0.5 }}>
+            <ToggleButton
+              value="heat"
+              sx={{ textTransform: "none", px: 1.5, gap: 0.5 }}
+            >
               <WhatshotIcon fontSize="small" color="error" />
-              Indice de Chaleur
+              Heat Index
             </ToggleButton>
-            <ToggleButton value="cold" sx={{ textTransform: "none", px: 1.5, gap: 0.5 }}>
+            <ToggleButton
+              value="cold"
+              sx={{ textTransform: "none", px: 1.5, gap: 0.5 }}
+            >
               <AcUnitIcon fontSize="small" color="info" />
-              Refroidissement Éolien
+              Wind Chill Index
             </ToggleButton>
           </ToggleButtonGroup>
         </Paper>
@@ -327,11 +485,19 @@ export default function Dashboard() {
             },
           }}
         >
-          <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mb: 0.5 }}>
-            {metric === "heat" ? "Indice de Chaleur (NWS)" : "Refroidissement Éolien"}
+          <Typography
+            variant="caption"
+            fontWeight={600}
+            color="text.secondary"
+            sx={{ mb: 0.5 }}
+          >
+            {metric === "heat" ? "Heat Index (NWS)" : "Wind Chill Index"}
           </Typography>
           {(metric === "heat" ? HEAT_CLASSES : COLD_CLASSES).map((band) => (
-            <Box key={band.label} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box
+              key={band.label}
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+            >
               <Box
                 sx={{
                   width: 16,
@@ -341,7 +507,11 @@ export default function Dashboard() {
                   border: "1px solid rgba(0,0,0,0.12)",
                 }}
               />
-              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 110 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ minWidth: 110 }}
+              >
                 {band.label}
               </Typography>
               <Typography variant="caption" color="text.disabled">
@@ -384,7 +554,11 @@ export default function Dashboard() {
               }}
             >
               <AccessTimeIcon fontSize="small" color="primary" />
-              <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
+              <Typography
+                variant="body2"
+                color="primary.main"
+                sx={{ fontWeight: 600 }}
+              >
                 {selectedDayIndex === 0
                   ? `Aujourd'hui — ${dayLabels[selectedDayIndex]}`
                   : `J+${selectedDayIndex} — ${dayLabels[selectedDayIndex]}`}
@@ -392,8 +566,13 @@ export default function Dashboard() {
               <Chip
                 {...{
                   size: "small",
-                  label: `${atRiskCount} ville${atRiskCount > 1 ? "s" : ""} à risque`,
-                  color: atRiskCount > 0 ? (metric === "heat" ? "error" : "info") : "default",
+                  label: `${atRiskCount} ${entityNoun}${atRiskCount > 1 ? "s" : ""} à risque`,
+                  color:
+                    atRiskCount > 0
+                      ? metric === "heat"
+                        ? "error"
+                        : "info"
+                      : "default",
                 }}
               />
             </Paper>
@@ -436,11 +615,19 @@ export default function Dashboard() {
                   onClick={() => setSelectedDayIndex(index)}
                   {...{
                     sx: {
-                      bgcolor: selectedDayIndex === index ? "primary.main" : "transparent",
-                      color: selectedDayIndex === index ? "#fff !important" : "text.secondary",
+                      bgcolor:
+                        selectedDayIndex === index
+                          ? "primary.main"
+                          : "transparent",
+                      color:
+                        selectedDayIndex === index
+                          ? "#fff !important"
+                          : "text.secondary",
                       "&:hover": {
                         bgcolor:
-                          selectedDayIndex === index ? "primary.dark" : "action.hover",
+                          selectedDayIndex === index
+                            ? "primary.dark"
+                            : "action.hover",
                       },
                     },
                   }}
@@ -468,7 +655,9 @@ export default function Dashboard() {
                     px: 1.5,
                     whiteSpace: "nowrap",
                     bgcolor: isPlaying ? "warning.main" : "primary.main",
-                    "&:hover": { bgcolor: isPlaying ? "warning.dark" : "primary.dark" },
+                    "&:hover": {
+                      bgcolor: isPlaying ? "warning.dark" : "primary.dark",
+                    },
                   },
                 }}
               >
@@ -527,19 +716,129 @@ export default function Dashboard() {
         }}
       >
         {/* Header — reflects the active metric */}
-        <Box sx={{ p: 2, bgcolor: "primary.dark", color: "primary.light" }}>
-          <Typography variant="h5" sx={{ color: "white", fontWeight: 700 }}>
-            {metric === "heat" ? "Vague de Chaleur" : "Vague de Froid"} — Maroc
-          </Typography>
-          <Typography variant="subtitle2">
+        <Box
+          sx={{
+            px: 2.5,
+            py: 2,
+            color: "white",
+            background:
+              metric === "heat"
+                ? "linear-gradient(135deg, #b3261e 0%, #7a1712 100%)"
+                : "linear-gradient(135deg, #1e5fa8 0%, #10315f 100%)",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {metric === "heat" ? <WhatshotIcon /> : <AcUnitIcon />}
+            <Typography
+              variant="h5"
+              sx={{ color: "white", fontWeight: 700, lineHeight: 1.1 }}
+            >
+              {metric === "heat" ? "Vague de Chaleur" : "Vague de Froid"}
+            </Typography>
+          </Box>
+          <Typography
+            variant="h5"
+            sx={{ color: "white", opacity: 0.9, mt: 0.5 }}
+          >
+            Maroc ·{" "}
             {dayLabels[selectedDayIndex]
-              ? `Prévision · ${dayLabels[selectedDayIndex]}`
+              ? `Prévision ${dayLabels[selectedDayIndex]}`
               : "Système National de Surveillance"}
           </Typography>
         </Box>
 
+        {/* KPI strip — headline numbers for the selected day */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            bgcolor: "background.paper",
+          }}
+        >
+          {[
+            {
+              label: entityLabel === "STATIONS" ? "Stations" : "Villes",
+              value: String(kpis.total),
+              sub: "suivies",
+            },
+            {
+              label: "À risque",
+              value: String(kpis.atRisk),
+              sub: `${kpis.riskPct}%`,
+              accent:
+                kpis.atRisk > 0
+                  ? metric === "heat"
+                    ? "error.main"
+                    : "info.main"
+                  : "text.primary",
+            },
+            {
+              label: metric === "heat" ? "Pic chaleur" : "Pic froid",
+              value: kpis.peakLabel,
+              sub: kpis.peakName,
+              accent: metric === "heat" ? "error.main" : "info.main",
+            },
+          ].map((kpi, i) => (
+            <Box
+              key={kpi.label}
+              sx={{
+                px: 1.5,
+                py: 1.25,
+                textAlign: "center",
+                borderLeft: i === 0 ? "none" : "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 800,
+                  lineHeight: 1.1,
+                  color: kpi.accent ?? "text.primary",
+                }}
+              >
+                {kpi.value}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 600,
+                  display: "block",
+                  color: "text.secondary",
+                }}
+              >
+                {kpi.label}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.disabled",
+                  display: "block",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {kpi.sub}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+
         {/* Summary — counts per NWS class (only non-safe tiers with cities) */}
-        <Box sx={{ px: 2, py: 1.5, display: "flex", gap: 0.75, flexWrap: "wrap", borderBottom: "1px solid", borderColor: "divider" }}>
+        <Box
+          sx={{
+            px: 2,
+            py: 1.5,
+            display: "flex",
+            gap: 0.75,
+            flexWrap: "wrap",
+            borderBottom: "1px solid",
+            borderColor: "divider",
+          }}
+        >
           {riskSummary.filter((c) => c.count > 0).length === 0 ? (
             <Typography variant="caption" color="text.secondary">
               Aucune ville en alerte pour cette journée.
@@ -564,9 +863,23 @@ export default function Dashboard() {
         </Box>
 
         {/* Filter — at-risk only toggle */}
-        <Box sx={{ px: 2, py: 1, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid", borderColor: "divider" }}>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 0.5 }}>
-            VILLES ({displayRegions.length})
+        <Box
+          sx={{
+            px: 2,
+            py: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottom: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          <Typography
+            variant="subtitle2"
+            color="text.secondary"
+            sx={{ fontWeight: 700, letterSpacing: 0.5 }}
+          >
+            {entityLabel} ({displayRegions.length})
           </Typography>
           <ToggleButtonGroup
             value={atRiskOnly ? "risk" : "all"}
@@ -574,10 +887,16 @@ export default function Dashboard() {
             size="small"
             onChange={(_e, val) => val && setAtRiskOnly(val === "risk")}
           >
-            <ToggleButton value="all" sx={{ textTransform: "none", py: 0.25, px: 1 }}>
+            <ToggleButton
+              value="all"
+              sx={{ textTransform: "none", py: 0.25, px: 1 }}
+            >
               Toutes
             </ToggleButton>
-            <ToggleButton value="risk" sx={{ textTransform: "none", py: 0.25, px: 1 }}>
+            <ToggleButton
+              value="risk"
+              sx={{ textTransform: "none", py: 0.25, px: 1 }}
+            >
               À risque
             </ToggleButton>
           </ToggleButtonGroup>
@@ -585,13 +904,16 @@ export default function Dashboard() {
 
         {/* City list */}
         <Box sx={{ flexGrow: 1, overflowY: "auto", p: 2, bgcolor: "grey.50" }}>
-
           {loading ? (
             <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
               <CircularProgress size={32} />
             </Box>
           ) : displayRegions.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", py: 4 }}>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ textAlign: "center", py: 4 }}
+            >
               Aucune ville à risque pour cette journée.
             </Typography>
           ) : (
@@ -613,7 +935,10 @@ export default function Dashboard() {
                       },
                     }}
                   >
-                    <ListItemButton onClick={() => toggleRegion(region.id)} sx={{ p: 1.5 }}>
+                    <ListItemButton
+                      onClick={() => toggleRegion(region.id)}
+                      sx={{ p: 1.5 }}
+                    >
                       <ListItemIcon sx={{ minWidth: 36 }}>
                         {risky ? (
                           metric === "heat" ? (
@@ -628,10 +953,20 @@ export default function Dashboard() {
                       <ListItemText
                         primary={region.name}
                         secondary={band.label}
-                        primaryTypographyProps={{ fontWeight: 600, variant: "body2" }}
+                        primaryTypographyProps={{
+                          fontWeight: 600,
+                          variant: "body2",
+                        }}
                         secondaryTypographyProps={{ variant: "caption" }}
                       />
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mr: 1 }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          mr: 1,
+                        }}
+                      >
                         <Chip
                           size="small"
                           label={`${Math.round(value)}°C`}
@@ -643,45 +978,83 @@ export default function Dashboard() {
                           }}
                         />
                       </Box>
-                      {expandedRegion === region.id ? <ExpandLess /> : <ExpandMore />}
+                      {expandedRegion === region.id ? (
+                        <ExpandLess />
+                      ) : (
+                        <ExpandMore />
+                      )}
                     </ListItemButton>
 
-                    <Collapse in={expandedRegion === region.id} timeout="auto" unmountOnExit>
+                    <Collapse
+                      in={expandedRegion === region.id}
+                      timeout="auto"
+                      unmountOnExit
+                    >
                       <Divider />
                       <Box sx={{ p: 2, bgcolor: "background.paper" }}>
                         <Grid container spacing={1.5}>
                           <Grid size={6}>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 0.5,
+                              }}
+                            >
                               <WhatshotIcon fontSize="small" color="error" />
-                              <Typography variant="body2" color="text.secondary">
-                                Indice de Chaleur
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Heat Index
                               </Typography>
                             </Box>
                             <Typography variant="h6" fontWeight={700}>
                               {region.heat_index.toFixed(1)}°C
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
                               {heatIndexClass(region.heat_index).label}
                             </Typography>
                           </Grid>
                           <Grid size={6}>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 0.5,
+                              }}
+                            >
                               <AcUnitIcon fontSize="small" color="info" />
-                              <Typography variant="body2" color="text.secondary">
-                                Refroidissement Éolien
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Wind Chill Index
                               </Typography>
                             </Box>
                             <Typography variant="h6" fontWeight={700}>
                               {region.wind_chill.toFixed(1)}°C
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
                               {windChillClass(region.wind_chill).label}
                             </Typography>
                           </Grid>
                         </Grid>
                         {region.date && (
-                          <Typography variant="caption" display="block" color="text.disabled" sx={{ mt: 1.5 }}>
-                            {region.coords[0].toFixed(2)}°N, {region.coords[1].toFixed(2)}°E · {region.date}
+                          <Typography
+                            variant="caption"
+                            display="block"
+                            color="text.disabled"
+                            sx={{ mt: 1.5 }}
+                          >
+                            {region.coords[0].toFixed(2)}°N,{" "}
+                            {region.coords[1].toFixed(2)}°E · {region.date}
                           </Typography>
                         )}
                       </Box>

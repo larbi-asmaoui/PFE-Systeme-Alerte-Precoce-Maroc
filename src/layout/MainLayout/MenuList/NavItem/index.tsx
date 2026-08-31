@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 // material-ui
-import { useTheme } from "@mui/material/styles";
+import { useTheme, alpha } from "@mui/material/styles";
 import {
   Avatar,
   Chip,
@@ -77,11 +77,26 @@ export default function NavItem({ item, level, drawerOpen }: NavItemProps) {
       sx={{
         borderRadius: `${borderRadius}px`,
         mb: 0.5,
+        position: "relative",
+        overflow: "hidden",
         backgroundColor: level > 1 ? "transparent !important" : "inherit",
         py: level > 1 ? 1 : 1.25,
+        transition: theme.transitions.create(["background-color", "color", "transform"], {
+          duration: theme.transitions.duration.shorter,
+        }),
         ...(drawerOpen && level !== 1 && { ml: `${level * 18}px` }),
         ...(!drawerOpen && level === 1 && { pl: 1.25 }), // Match Vite's 10px padding
         ...(!drawerOpen && level !== 1 && { pl: `${16 + (level - 2) * 16}px` }),
+        // Idle-item hover for open, top-level items: subtle tint + nudge.
+        ...(drawerOpen &&
+          level === 1 &&
+          !isSelected && {
+            "&:hover": {
+              backgroundColor: `${theme.palette.secondary.light} !important`,
+              transform: "translateX(3px)",
+              "& .MuiListItemIcon-root": { color: theme.palette.secondary.main },
+            },
+          }),
         ...((!drawerOpen || level !== 1) && {
           py: level === 1 ? 0 : 1,
           "&:hover": {
@@ -97,14 +112,32 @@ export default function NavItem({ item, level, drawerOpen }: NavItemProps) {
         ...(drawerOpen &&
           level === 1 &&
           isSelected && {
-            backgroundColor: `${theme.palette.secondary.light} !important`,
-            color: `${theme.palette.secondary.main} !important`,
+            color: `${theme.palette.secondary.dark} !important`,
+            background: `linear-gradient(90deg, ${theme.palette.secondary.light} 0%, ${alpha(
+              theme.palette.secondary.light,
+              0.35,
+            )} 100%) !important`,
+            fontWeight: 700,
+            // Left accent bar marking the active route.
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              left: 0,
+              top: 6,
+              bottom: 6,
+              width: 4,
+              borderRadius: 4,
+              backgroundColor: theme.palette.secondary.main,
+            },
             "& .MuiListItemIcon-root": {
               color: `${theme.palette.secondary.main} !important`,
             },
             "&:hover": {
-              color: `${theme.palette.secondary.main} !important`,
-              backgroundColor: `${theme.palette.secondary.light} !important`,
+              color: `${theme.palette.secondary.dark} !important`,
+              background: `linear-gradient(90deg, ${theme.palette.secondary.light} 0%, ${alpha(
+                theme.palette.secondary.light,
+                0.35,
+              )} 100%) !important`,
               "& .MuiListItemIcon-root": {
                 color: `${theme.palette.secondary.main} !important`,
               },

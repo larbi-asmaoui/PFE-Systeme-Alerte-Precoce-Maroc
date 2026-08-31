@@ -57,6 +57,7 @@ CURRENT_FILE = Path(__file__).resolve()
 BACKEND_DIR = CURRENT_FILE.parents[2]            # backend/
 PROJECT_ROOT = BACKEND_DIR.parent                # repo root
 GEOJSON_PATH = PROJECT_ROOT / "public" / "data" / "today_alerts.geojson"
+STATIONS_PATH = PROJECT_ROOT / "public" / "data" / "stations_forecast.geojson"
 
 # In-memory cache for the heavy DataLake artifacts (raw prediction + climatology).
 # Re-downloading them on every map click would be wasteful; refresh after TTL.
@@ -68,14 +69,14 @@ _cache: Dict[str, Any] = {"key": None, "loaded_at": 0.0, "pred": None, "tmax_90p
 # ---------------------------------------------------------------------------
 # /alerts/current — today's pre-computed city alerts
 # ---------------------------------------------------------------------------
-def _read_geojson() -> Dict[str, Any]:
-    """Read today_alerts.geojson; return an empty collection when missing/corrupt."""
-    if not GEOJSON_PATH.exists():
-        logger.warning("GeoJSON file not found: %s — returning empty collection", GEOJSON_PATH)
+def _read_geojson(path: Path = GEOJSON_PATH) -> Dict[str, Any]:
+    """Read a static GeoJSON file; return an empty collection when missing/corrupt."""
+    if not path.exists():
+        logger.warning("GeoJSON file not found: %s — returning empty collection", path)
         return {"type": "FeatureCollection", "features": []}
 
     try:
-        with open(GEOJSON_PATH, "r", encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8") as fh:
             return json.load(fh)
     except json.JSONDecodeError:
         logger.exception("Corrupted GeoJSON file — returning empty collection")
@@ -96,6 +97,22 @@ async def get_current_alerts() -> Dict[str, Any]:
     except Exception:
         logger.exception("Unhandled error reading alerts")
         raise HTTPException(status_code=500, detail="Failed to load alert data")
+
+
+@router.get("/stations", summary="Fetch the GSOD station 7-day forecasts")
+async def get_station_forecasts() -> Dict[str, Any]:
+    """
+    Returns a GeoJSON FeatureCollection with one Point Feature per monitored GSOD
+    station, each carrying its GRU 7-day Heat Index / Wind Chill forecast in
+    ``properties`` (``hi``, ``wc``, ``sev``, ``lvl`` arrays + worst-day summary).
+
+    The file is produced offline by ``backend/predict_stations.py``.
+    """
+    try:
+        return _read_geojson(STATIONS_PATH)
+    except Exception:
+        logger.exception("Unhandled error reading station forecasts")
+        raise HTTPException(status_code=500, detail="Failed to load station forecast data")
 
 
 # ---------------------------------------------------------------------------

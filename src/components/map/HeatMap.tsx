@@ -26,6 +26,9 @@ export interface GridCellProperties {
   row?: number;
   col?: number;
   h3?: string;
+  // Station source (Pipeline A): each Point feature is a monitored GSOD station.
+  station_id?: string;
+  station_name?: string;
   lat: number;
   lon: number;
   alert_level: string;
@@ -56,10 +59,14 @@ export interface GeoJSONData {
 
 export type MapMetric = "heat" | "cold";
 
+// Which pipeline feeds the map: the ERA5-Land hex choropleth or the GSOD stations.
+export type MapSource = "grid" | "stations";
+
 interface HeatMapProps {
   geojson: GeoJSONData | null;
   selectedDay: number;
   metric: MapMetric;
+  sourceType?: MapSource;
   onCellClick?: (lat: number, lon: number) => void;
 }
 
@@ -67,7 +74,8 @@ interface HeatMapProps {
 // Constants
 // ---------------------------------------------------------------------------
 // Open / free MapLibre vector style (no API key) — light Carto "Positron".
-const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+const MAP_STYLE =
+  "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
 const INITIAL_VIEW_STATE = {
   longitude: -7.0926,
@@ -86,23 +94,23 @@ type RGB = [number, number, number];
 const HEAT_STOPS: Array<[number, RGB]> = [
   [18, [199, 233, 180]], //  low risk — light green
   [27, [255, 255, 178]], //  caution — pale yellow
-  [33, [254, 204, 92]], //   extreme caution — amber
-  [40, [253, 141, 60]], //   danger — orange
-  [46, [240, 59, 32]], //    danger — red
-  [51, [189, 0, 38]], //     extreme danger — deep red
-  [57, [94, 11, 75]], //     extreme+ — dark purple (NOAA top end)
+  [32, [254, 204, 92]], //   extreme caution — amber
+  [41, [253, 141, 60]], //   danger — orange
+  [48, [240, 59, 32]], //    danger — red
+  [54, [189, 0, 38]], //     extreme danger — deep red
+  [60, [94, 11, 75]], //     extreme+ — dark purple (NOAA top end)
 ];
 
 // Wind Chill colour ramp (°C), ASCENDING (interpStops requires it): coldest →
 // comfortable. Progressively colder = deeper blue/indigo.
 const COLD_STOPS: Array<[number, RGB]> = [
-  [-40, [20, 18, 84]], //    extreme+ — near-black indigo
-  [-30, [37, 52, 148]], //   extreme — indigo
-  [-20, [34, 94, 168]], //   severe — dark blue
-  [-10, [49, 130, 189]], //  very cold — deep blue
-  [0, [120, 198, 230]], //   cold — blue
-  [10, [199, 233, 245]], //  cool — pale blue
-  [18, [240, 240, 235]], //  comfortable — neutral
+  [-35, [20, 18, 84]], //    froid extrême — near-black indigo
+  [-20, [37, 52, 148]], //   froid extrême onset — indigo
+  [-10, [34, 94, 168]], //   froid inconfortable — dark blue
+  [0, [49, 130, 189]], //    frais onset — deep blue
+  [8, [120, 198, 230]], //   frais — blue
+  [15, [199, 233, 245]], //  confort onset — pale blue
+  [22, [240, 240, 235]], //  confort — neutral
 ];
 
 function interpStops(stops: Array<[number, RGB]>, v: number): RGB {
@@ -125,10 +133,13 @@ function interpStops(stops: Array<[number, RGB]>, v: number): RGB {
 
 // RGBA for the active metric. Comfortable values stay translucent so the
 // basemap/labels show through; hazardous values are nearly opaque.
-function metricColor(metric: MapMetric, value: number): [number, number, number, number] {
+function metricColor(
+  metric: MapMetric,
+  value: number,
+): [number, number, number, number] {
   if (metric === "cold") {
     const [r, g, b] = interpStops(COLD_STOPS, value);
-    return [r, g, b, value > 10 ? 140 : 210];
+    return [r, g, b, value > 15 ? 140 : 210];
   }
   const [r, g, b] = interpStops(HEAT_STOPS, value);
   return [r, g, b, value < 27 ? 150 : 210];
@@ -141,67 +152,91 @@ export interface ClassBand {
   color: string; // hex swatch (legend); roughly samples the ramp
 }
 
-// Heat Index classes (°C) — exact NWS thresholds, high → low.
+// Heat Index classes (°C) — NWS thresholds, high → low.
 export const HEAT_CLASSES: ClassBand[] = [
-  { label: "Danger extrême", range: "> 51°C", color: "#5e0b4b" },
-  { label: "Danger", range: "40–51°C", color: "#e3251c" },
-  { label: "Prudence extrême", range: "33–39°C", color: "#fca12c" },
-  { label: "Prudence", range: "27–32°C", color: "#ffeb84" },
+  { label: "Danger extrême", range: "> 54°C", color: "#5e0b4b" },
+  { label: "Danger", range: "41–54°C", color: "#e3251c" },
+  { label: "Vigilance accrue", range: "32–41°C", color: "#fca12c" },
+  { label: "Vigilance", range: "27–32°C", color: "#ffeb84" },
   { label: "Risque faible", range: "< 27°C", color: "#c7e9b4" },
 ];
 
-// Wind Chill classes (°C) — cold-stress / frostbite risk, cold → mild.
+// Wind Chill classes (°C) — cold-stress risk, cold → mild.
 export const COLD_CLASSES: ClassBand[] = [
-  { label: "Extrême", range: "< -28°C", color: "#253494" },
-  { label: "Très froid", range: "-28 … -10°C", color: "#225ea8" },
-  { label: "Froid", range: "-10 … 0°C", color: "#4292c6" },
-  { label: "Frais", range: "0 … 10°C", color: "#c7e9f5" },
-  { label: "Confort", range: "> 10°C", color: "#f0f0eb" },
+  { label: "Froid extrême", range: "-35 … -20°C", color: "#253494" },
+  { label: "Froid inconfortable", range: "-20 … 0°C", color: "#4292c6" },
+  { label: "Frais", range: "0 … 15°C", color: "#c7e9f5" },
+  { label: "Confort", range: "> 15°C", color: "#f0f0eb" },
 ];
 
 export function heatIndexClass(c: number): ClassBand {
-  if (c >= 51) return HEAT_CLASSES[0];
-  if (c >= 40) return HEAT_CLASSES[1];
-  if (c >= 33) return HEAT_CLASSES[2];
+  if (c >= 54) return HEAT_CLASSES[0];
+  if (c >= 41) return HEAT_CLASSES[1];
+  if (c >= 32) return HEAT_CLASSES[2];
   if (c >= 27) return HEAT_CLASSES[3];
   return HEAT_CLASSES[4];
 }
 
 export function windChillClass(c: number): ClassBand {
-  if (c < -28) return COLD_CLASSES[0];
-  if (c < -10) return COLD_CLASSES[1];
-  if (c < 0) return COLD_CLASSES[2];
-  if (c < 10) return COLD_CLASSES[3];
-  return COLD_CLASSES[4];
+  if (c < -20) return COLD_CLASSES[0];
+  if (c < 0) return COLD_CLASSES[1];
+  if (c < 15) return COLD_CLASSES[2];
+  return COLD_CLASSES[3];
 }
 
 // A Sedona H3 hexagon feature carrying the multi-day forecast.
 type HexFeature = Feature<Geometry, GridCellProperties>;
 
 // Forecast for one hexagon at the selected day (falls back to day 0 / cell-level).
-const cellForecast = (props: GridCellProperties, day: number): ForecastDay | undefined =>
-  props.forecasts?.[day] ?? props.forecasts?.[0];
+const cellForecast = (
+  props: GridCellProperties,
+  day: number,
+): ForecastDay | undefined => props.forecasts?.[day] ?? props.forecasts?.[0];
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
-export default function HeatMap({ geojson, selectedDay, metric, onCellClick }: HeatMapProps) {
-  // Sedona H3 hexagons coloured by the selected forecast day + metric — 2D choropleth.
+export default function HeatMap({
+  geojson,
+  selectedDay,
+  metric,
+  sourceType = "grid",
+  onCellClick,
+}: HeatMapProps) {
+  // ERA5-Land H3 hexagons (choropleth) OR GSOD stations (graduated points),
+  // both coloured by the selected forecast day + metric.
+  const isStations = sourceType === "stations";
   const layers = useMemo(
     () => [
       new GeoJsonLayer<GridCellProperties>({
-        id: `metric-choropleth-${metric}-${selectedDay}`,
+        // Stable id per source: deck.gl then recolors via updateTriggers instead
+        // of destroying + re-uploading the whole layer on each day/metric change.
+        id: `layer-${sourceType}`,
         data: (geojson?.features ?? []) as unknown as HexFeature[],
         pickable: true,
         filled: true,
-        stroked: false, // borderless -> hexes blend into a smooth continuous field
+        // Stations: bold circles with a white outline so they read as discrete
+        // points over the basemap. Grid: borderless -> smooth continuous field.
+        stroked: isStations,
+        getLineColor: [255, 255, 255, 230],
+        lineWidthMinPixels: isStations ? 1.5 : 0,
+        pointType: "circle",
+        pointRadiusUnits: "pixels",
+        pointRadiusMinPixels: 6,
+        pointRadiusMaxPixels: 26,
+        // Radius grows with how far into the alert zone the station's severity is.
+        getPointRadius: (f: HexFeature) => {
+          const fc = cellForecast(f.properties, selectedDay);
+          return 7 + Math.max(0, fc?.severity ?? 0) * 2.2;
+        },
         getFillColor: (f: HexFeature) => {
           const fc = cellForecast(f.properties, selectedDay);
           const value = metric === "cold" ? fc?.wind_chill : fc?.heat_index;
-          return metricColor(metric, value ?? (metric === "cold" ? 18 : 18));
+          return metricColor(metric, value ?? 18);
         },
         updateTriggers: {
           getFillColor: [selectedDay, metric],
+          getPointRadius: [selectedDay, metric],
         },
         onClick: (info) => {
           if (onCellClick && info.object) {
@@ -210,7 +245,7 @@ export default function HeatMap({ geojson, selectedDay, metric, onCellClick }: H
         },
       }),
     ],
-    [geojson, selectedDay, metric, onCellClick],
+    [geojson, selectedDay, metric, sourceType, isStations, onCellClick],
   );
 
   // Hover tooltip — both metrics, with the active one classified per NWS.
@@ -223,14 +258,17 @@ export default function HeatMap({ geojson, selectedDay, metric, onCellClick }: H
     const band = metric === "cold" ? windChillClass(wc) : heatIndexClass(hi);
     const heatStyle = metric === "heat" ? "font-weight:600" : "opacity:0.7";
     const coldStyle = metric === "cold" ? "font-weight:600" : "opacity:0.7";
+    const title = p.station_name
+      ? `${p.station_name}`
+      : `${p.lat.toFixed(2)}°N, ${p.lon.toFixed(2)}°E`;
     return {
       html: `
         <div style="font-family:system-ui,sans-serif;min-width:180px">
           <div style="font-weight:600;margin-bottom:4px">
-            ${p.lat.toFixed(2)}°N, ${p.lon.toFixed(2)}°E
+            ${title}
           </div>
-          <div style="${heatStyle}">Indice de Chaleur : <b>${hi.toFixed(1)}°C</b></div>
-          <div style="${coldStyle}">Refroidissement Éolien : <b>${wc.toFixed(1)}°C</b></div>
+          <div style="${heatStyle}">Heat Index : <b>${hi.toFixed(1)}°C</b></div>
+          <div style="${coldStyle}">Wind Chill Index : <b>${wc.toFixed(1)}°C</b></div>
           <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
             <span style="width:10px;height:10px;border-radius:2px;background:${band.color};display:inline-block"></span>
             <b>${band.label}</b> <span style="opacity:0.6">(${band.range})</span>
@@ -248,7 +286,15 @@ export default function HeatMap({ geojson, selectedDay, metric, onCellClick }: H
   };
 
   return (
-    <Box sx={{ height: "100%", width: "100%", position: "absolute", inset: 0, zIndex: 0 }}>
+    <Box
+      sx={{
+        height: "100%",
+        width: "100%",
+        position: "absolute",
+        inset: 0,
+        zIndex: 0,
+      }}
+    >
       <DeckGL
         initialViewState={INITIAL_VIEW_STATE}
         controller
