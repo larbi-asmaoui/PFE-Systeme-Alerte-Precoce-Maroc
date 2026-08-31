@@ -454,14 +454,14 @@ export default function Dashboard() {
               sx={{ textTransform: "none", px: 1.5, gap: 0.5 }}
             >
               <WhatshotIcon fontSize="small" color="error" />
-              Heat Index
+              Indice de Chaleur
             </ToggleButton>
             <ToggleButton
               value="cold"
               sx={{ textTransform: "none", px: 1.5, gap: 0.5 }}
             >
               <AcUnitIcon fontSize="small" color="info" />
-              Wind Chill Index
+              Refroidissement Éolien
             </ToggleButton>
           </ToggleButtonGroup>
         </Paper>
@@ -491,7 +491,9 @@ export default function Dashboard() {
             color="text.secondary"
             sx={{ mb: 0.5 }}
           >
-            {metric === "heat" ? "Heat Index (NWS)" : "Wind Chill Index"}
+            {metric === "heat"
+              ? "Indice de Chaleur (NWS)"
+              : "Refroidissement Éolien"}
           </Typography>
           {(metric === "heat" ? HEAT_CLASSES : COLD_CLASSES).map((band) => (
             <Box
@@ -736,10 +738,7 @@ export default function Dashboard() {
               {metric === "heat" ? "Vague de Chaleur" : "Vague de Froid"}
             </Typography>
           </Box>
-          <Typography
-            variant="h5"
-            sx={{ color: "white", opacity: 0.9, mt: 0.5 }}
-          >
+          <Typography variant="subtitle2" sx={{ opacity: , mt: 0.5 }}>
             Maroc ·{" "}
             {dayLabels[selectedDayIndex]
               ? `Prévision ${dayLabels[selectedDayIndex]}`
@@ -1006,7 +1005,7 @@ export default function Dashboard() {
                                 variant="body2"
                                 color="text.secondary"
                               >
-                                Heat Index
+                                Indice de Chaleur
                               </Typography>
                             </Box>
                             <Typography variant="h6" fontWeight={700}>
@@ -1032,7 +1031,7 @@ export default function Dashboard() {
                                 variant="body2"
                                 color="text.secondary"
                               >
-                                Wind Chill Index
+                                Refroidissement Éolien
                               </Typography>
                             </Box>
                             <Typography variant="h6" fontWeight={700}>

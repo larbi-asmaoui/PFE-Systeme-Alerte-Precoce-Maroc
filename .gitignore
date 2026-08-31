@@ -12,6 +12,20 @@
 /Data-collector-pfe
 /backend/artifacts
 /data/*
+/data2/
+/.venv/
+/.cache.sqlite
+
+# Generated datasets and model outputs
+*.nc
+*.grib
+*.tif
+*.parquet
+*.keras
+*.h5
+*.pt
+**/artifacts/
+**/checkpoints/
 # testing
 /coverage
 
