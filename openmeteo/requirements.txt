@@ -1,4 +1,0 @@
-pandas>=2.0.0
-numpy>=1.26.0,<2.1.0
-# HTTP via stdlib urllib — no requests needed.
-# MinIO upload (optional) reuses backend/requirements.txt boto3.
